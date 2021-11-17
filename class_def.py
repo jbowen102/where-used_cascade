@@ -78,13 +78,23 @@ class PartGroup(object):
         True/False for can_obs).
         """
         for platform in platform_dict:
-            self.Parts.add(Platform(platform, platform_dict[platform]))
+            platform_pn = platform.split("-")[0]
+            platform_desc = platform[len(platform_pn)+1:]
+            platform_obs = platform_dict[platform]
+            self.Parts.add(Platform(platform_pn, platform_desc, platform_obs))
 
     def get_part(self, part_num):
         for Part in self.Parts:
             if part_num == Part.get_pn():
                 return Part
         return False # only happens if no match found in loop.
+
+    def get_parts(self):
+        return self.Parts
+
+    def __repr__(self):
+        return "PartsGroup object: %s" % str(self.Parts)
+
 
 # testing
 # Pltfm1 = Platform("658237", True)
