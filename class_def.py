@@ -1,14 +1,23 @@
+import os
+import csv
 
-
+# dir path where this script is stored
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# https://stackoverflow.com/questions/29768937/return-the-file-path-of-the-file-not-the-current-directory
 
 class Part(object):
     """Object to represent a part, assy, or mod.
     """
-    def __init__(self, part_num, Parents=set()):
+    def __init__(self, part_num, name, Parents=set()):
         self.part_num = part_num
+        self.name = name
         self.Parents = Parents
 
     def get_obs_status(self):
+        # If the name of the part is OBS, don't bother w/ parent query.
+        if len(self.name) > 3 and "OBS" in self.name[:4].upper():
+            return True
+
         self.can_obs = True
         for Parent in self.Parents:
             parent_status = Parent.get_obs_status()
@@ -21,11 +30,20 @@ class Part(object):
     def add_parent(self, Parent):
         self.Parents.add(Parent)
 
+    def get_parent(self, parent_num):
+        for Parent in self.Parents:
+            if parent_num == Parent.get_pn():
+                return Parent
+        return False # only happens if no match found in loop.
+
     def get_parents(self):
         return self.Parents
 
     def get_pn(self):
         return self.part_num
+
+    def get_name(self):
+        return self.name
 
     def __str__(self):
         return self.part_num
@@ -37,16 +55,36 @@ class Part(object):
 class Platform(Part):
     """Object to represent a platform. Inherits from Part class.
     """
-    def __init__(self, part_num, can_obs):
+    def __init__(self, part_num, name, can_obs):
         self.part_num = part_num
-        self.Parents = None
+        self.name = name
         self.can_obs = can_obs
+        self.Parents = None
 
     def get_obs_status(self):
         return self.can_obs
 
     def __repr__(self):
         return "Platform object: %s" % self.part_num
+
+
+class PartGroup(object):
+    def __init__(self, starting_set=set()):
+        self.import_dir = os.path.join(SCRIPT_DIR, "import")
+        self.Parts = starting_set
+
+    def import_platforms(self, platform_dict):
+        """Read in platform data from given dictionary (key is PN and value is
+        True/False for can_obs).
+        """
+        for platform in platform_dict:
+            self.Parts.add(Platform(platform, platform_dict[platform]))
+
+    def get_part(self, part_num):
+        for Part in self.Parts:
+            if part_num == Part.get_pn():
+                return Part
+        return False # only happens if no match found in loop.
 
 # testing
 # Pltfm1 = Platform("658237", True)
