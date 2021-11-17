@@ -2,6 +2,7 @@ __pycache__/
 .~*
 *.pyc
 *.out
+platforms.py
 update_*
 /bu
 /where-used_cascade

@@ -45,6 +45,9 @@ class Platform(Part):
     def get_obs_status(self):
         return self.can_obs
 
+    def __repr__(self):
+        return "Platform object: %s" % self.part_num
+
 # testing
 # Pltfm1 = Platform("658237", True)
 # # print(Pltfm1, ": ", Pltfm1.get_obs_status())
