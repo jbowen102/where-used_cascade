@@ -11,5 +11,15 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
 
-# for Part in AllParts.get_parts():
-#     print("%r\n\tCan OBS? %r\n" % (Part, Part.get_obs_status()))
+AllParts.import_report("")
+AllParts.import_report("")
+
+# for PartNum in AllParts.get_parts():
+#     # print("\n%s" % PartNum)
+#     print("%s has parents %r" % (PartNum, PartNum.get_parents()))
+#     print("\tCan OBS? %r\n" % (PartNum.get_obs_status()))
+#     # print("%s\n\tCan OBS? %r\n" % (PartNum, PartNum.get_obs_status()))
+#     # print("\t%r\n" % PartNum.get_obs_status())
+#     # print("%r" % PartNum)
+
+AllParts.print_all_obs_status()
