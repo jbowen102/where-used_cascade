@@ -25,4 +25,5 @@ AllParts.import_platforms(platform_dict)
 
 AllParts.import_all_reports()
 
-AllParts.print_obs_status_trace()
+AllParts.get_target_obs_status()
+# AllParts.print_obs_status_trace()

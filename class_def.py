@@ -13,7 +13,7 @@ class Part(object):
         self.name = name
         self.Parents = set()
 
-    def get_obs_status(self):
+    def get_obs_status(self, silent=False):
         # If the name of the part is OBS, don't bother w/ parent query.
         # Skip if no name input.
         if not self.name:
@@ -23,10 +23,13 @@ class Part(object):
 
         self.can_obs = True
         for Parent_i in self.Parents:
-            print("%s: looking for status of parent %s" % (self.part_num, Parent_i))
-            parent_status = Parent_i.get_obs_status()
-            print("\t%s has parent %s - can obs? %r" % (self.part_num, Parent_i,
-                                                                parent_status))
+            if not silent:
+                print("%s: looking for status of parent %s" % (self.part_num,
+                                                                    Parent_i))
+            parent_status = Parent_i.get_obs_status(silent)
+            if not silent:
+                print("\t%s has parent %s - can obs? %r" % (self.part_num,
+                                                    Parent_i, parent_status))
             if parent_status == False:
                 self.can_obs = False
                 break
@@ -67,7 +70,7 @@ class Platform(Part):
         self.can_obs = can_obs
         self.Parents = None
 
-    def get_obs_status(self):
+    def get_obs_status(self, silent=False):
         return self.can_obs
 
     def __repr__(self):
@@ -97,7 +100,7 @@ class PartGroup(object):
         # every target part has a corresponding report.
         self.report_Parts = set()
 
-        print("\nParts: %r" % self.Parts)
+        print("\nParts:\t      %r" % self.Parts)
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
 
@@ -110,7 +113,7 @@ class PartGroup(object):
             platform_pn = platform.split("-")[0]
             platform_desc = platform[len(platform_pn)+1:]
             platform_obs = platform_dict[platform]
-            print("\tAdding platform %s to group" % platform_pn)
+            print("\tAdding platform %12s  to group" % platform_pn)
             self.add_part(Platform(platform_pn, platform_desc, platform_obs))
         print("...done")
 
@@ -135,6 +138,12 @@ class PartGroup(object):
                 print("%s has parents %r" % (PartNum, PartNum.get_parents()))
             print("\t%s: Can OBS? %r\n" % (PartNum, PartNum.get_obs_status()))
 
+    def get_target_obs_status(self):
+        print("\nTarget parts OBS status:")
+        for TargetPart in self.target_Parts:
+            print("\t%s: Can OBS? %r" % (TargetPart,
+                                        TargetPart.get_obs_status(silent=True)))
+
     def import_target_parts(self):
         """Imports all part numbers stored in import/target_parts.txt.
         Format of target_parts file can be either [P/N] or [P/N]-[DESCRIPTION].
@@ -145,7 +154,7 @@ class PartGroup(object):
             print("\nImporting list of target parts from %s..." % target_filename)
             with open(target_parts_path, "r") as target_file_it:
                 lines = target_file_it.read().splitlines()
-
+                # https://stackoverflow.com/questions/19062574/read-file-into-list-and-strip-newlines
                 for i, target_part in enumerate(lines):
                     target_pn = target_part.split("-")[0]
                     assert len(target_pn) >= 6, ("Encountered %s in file %s. "
@@ -216,10 +225,10 @@ class PartGroup(object):
 
                     if self.get_part(part_num) == False:
                         ThisPart = Part(part_num, name=part_desc)
-                        print("\tAdding report part %s to group" % ThisPart)
+                        print("\tAdding %s to group (report part)" % ThisPart)
                         self.add_part(ThisPart)
                     else:
-                        print("\tReport part %s already in group" % part_num)
+                        print("\tPart   %s already in group (report part)" % part_num)
                         ThisPart = self.get_part(part_num)
                     self.report_Parts.add(ThisPart)
                     # print("")
@@ -248,10 +257,10 @@ class PartGroup(object):
                     # the Parts set.
                     if self.get_part(parent_num) == False:
                         NewParent = Part(parent_num, name=parent_desc)
-                        print("\n\tAdding part %s to group" % NewParent)
+                        print("\n\tAdding %12s to group" % NewParent)
                         self.add_part(NewParent)
                     else:
-                        print("\n\tPart %s already in group" % parent_num)
+                        print("\n\tPart   %12s already in group" % parent_num)
                         NewParent = self.get_part(parent_num)
                     # print("\t\tPart %s has parent set %r" % (NewParent,
                     #                                    NewParent.get_parents()))
@@ -259,7 +268,7 @@ class PartGroup(object):
                     # Add this part as a parent if not already in
                     # the Parents set.
                     if ThisPart.get_parent(parent_num) == False:
-                        print("\tAdding %s as parent of part %s" % (NewParent,
+                        print("\tAdding %12s as parent of part %12s" % (NewParent,
                                                                       ThisPart))
                         ThisPart.add_parent(NewParent)
 
@@ -270,7 +279,7 @@ class PartGroup(object):
                     # print("")
 
         print("...done")
-        print("\nParts: %r" % self.Parts)
+        print("\nParts:\t      %r" % self.Parts)
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
 
