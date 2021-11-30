@@ -13,12 +13,22 @@ class Part(object):
         self.name = name
         self.Parents = set()
 
+        # Establish if part has "OBS" prefix in SAP
+        if self.name and len(self.name) > 3 and "OBS" in self.name[:4].upper():
+            self.obs_disp = True
+        else:
+            self.obs_disp = False
+
+        # Initialize variable indicating where-used results are present (until
+        # determined otherwise)
+        self.orphan = False
+
+    def get_obs_disp(self):
+        return self.obs_disp
+
     def get_obs_status(self, silent=False):
         # If the name of the part is OBS, don't bother w/ parent query.
-        # Skip if no name input.
-        if not self.name:
-            pass
-        elif len(self.name) > 3 and "OBS" in self.name[:4].upper():
+        if self.obs_disp:
             return True
 
         self.can_obs = True
@@ -35,6 +45,12 @@ class Part(object):
                 break
         # If no parents in set, results in self.can_obs = True as it should.
         return self.can_obs
+
+    def set_orphan(self):
+        self.orphan = True
+
+    def is_orphan(self):
+        return self.orphan
 
     def add_parent(self, Parent_i):
         self.Parents.add(Parent_i)
@@ -91,13 +107,13 @@ class PartGroup(object):
         else:
             self.import_target_parts()
 
+        assert len(self.target_Parts) >= 1, "No target parts identified."
+
         # Use target_Parts as basis for Parts so same objects are used when
         # importing where-used reports.
         self.Parts = self.Parts.union(self.target_Parts)
 
         # Initialize list of primary parts that where-used reports pertain to.
-        # Will compare this list to self.target_Parts later to ensure a report
-        # every target part has a corresponding report.
         self.report_Parts = set()
 
         print("\nParts:\t      %r" % self.Parts)
@@ -150,30 +166,28 @@ class PartGroup(object):
         """
         target_filename = "target_parts.txt"
         target_parts_path = os.path.join(self.import_dir, target_filename)
-        if os.path.exists(target_parts_path):
-            print("\nImporting list of target parts from %s..." % target_filename)
-            with open(target_parts_path, "r") as target_file_it:
-                lines = target_file_it.read().splitlines()
-                # https://stackoverflow.com/questions/19062574/read-file-into-list-and-strip-newlines
-                for i, target_part in enumerate(lines):
-                    target_pn = target_part.split("-")[0]
-                    assert len(target_pn) >= 6, ("Encountered %s in file %s. "
-                                                "Expected a P/N of length >= 6."
-                                               % (target_part, target_filename))
-                    if len(target_part.split("-")) > 1:
-                        # Including description isn't necessary in target_parts
-                        # list.
-                        target_desc = target_part[len(target_pn)+1:]
-                        assert len(target_desc) > 0, ("Encountered %s in file "
-                                "%s. Expected a description after P/N and dash."
-                                               % (target_part, target_filename))
-                    else:
-                        target_desc = None
-                    if target_part not in self.target_Parts:
-                        self.target_Parts.add(Part(target_pn, name=target_desc))
-            print("...done")
-        else:
-            return False
+        assert os.path.exists(target_parts_path), "Can't find %s" % target_filename
+        print("\nImporting list of target parts from %s..." % target_filename)
+        with open(target_parts_path, "r") as target_file_it:
+            lines = target_file_it.read().splitlines()
+            # https://stackoverflow.com/questions/19062574/read-file-into-list-and-strip-newlines
+            for i, target_part in enumerate(lines):
+                target_pn = target_part.split("-")[0]
+                assert len(target_pn) >= 6, ("Encountered %s in file %s. "
+                                            "Expected a P/N of length >= 6."
+                                           % (target_part, target_filename))
+                if len(target_part.split("-")) > 1:
+                    # Including description isn't necessary in target_parts
+                    # list.
+                    target_desc = target_part[len(target_pn)+1:]
+                    assert len(target_desc) > 1, ("Encountered %s in file "
+                            "%s. Expected a description after P/N and dash."
+                                           % (target_part, target_filename))
+                else:
+                    target_desc = None
+                if target_part not in self.target_Parts:
+                    self.target_Parts.add(Part(target_pn, name=target_desc))
+        print("...done")
 
     def import_all_reports(self):
         """Read in all where-used reports in import directory.
@@ -187,11 +201,8 @@ class PartGroup(object):
             import_path = os.path.join(self.import_dir, file_name)
             self.import_report(import_path)
 
-        # test if any target part was left out of where-used reports imported.
-        assert self.target_Parts.issubset(self.report_Parts)
-
-    def __repr__(self):
-        return "PartsGroup object: %s" % str(self.Parts)
+        # Test if any needed report is missing.
+        self.find_missing_reports()
 
     def import_report(self, import_path):
         """Read in specific where-used report.
@@ -257,10 +268,10 @@ class PartGroup(object):
                     # the Parts set.
                     if self.get_part(parent_num) == False:
                         NewParent = Part(parent_num, name=parent_desc)
-                        print("\n\tAdding %12s to group" % NewParent)
+                        print("\n\tAdding %s to group" % NewParent)
                         self.add_part(NewParent)
                     else:
-                        print("\n\tPart   %12s already in group" % parent_num)
+                        print("\n\tPart   %s already in group" % parent_num)
                         NewParent = self.get_part(parent_num)
                     # print("\t\tPart %s has parent set %r" % (NewParent,
                     #                                    NewParent.get_parents()))
@@ -268,7 +279,7 @@ class PartGroup(object):
                     # Add this part as a parent if not already in
                     # the Parents set.
                     if ThisPart.get_parent(parent_num) == False:
-                        print("\tAdding %12s as parent of part %12s" % (NewParent,
+                        print("\tAdding %s as parent of part %s" % (NewParent,
                                                                       ThisPart))
                         ThisPart.add_parent(NewParent)
 
@@ -282,6 +293,44 @@ class PartGroup(object):
         print("\nParts:\t      %r" % self.Parts)
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
+
+    def find_missing_reports(self):
+
+        while True:
+            # Every part should belong to one of these groups: parts w/ a report,
+            # platforms, parts w/ "OBS" prefix, or orphan parts (empty where-used).
+            platform_parts = set({Part_i for Part_i in self.Parts
+            if Part_i.__class__.__name__ == "Platform"})
+            # Now exclude the platform parts from the search for parts w/ "OBS"
+            obs_parts = set({Part_i for Part_i
+            in self.Parts.difference(platform_parts)
+            if Part_i.get_obs_disp()})
+            orphan_parts = set({Part_i for Part_i
+            in self.Parts.difference(platform_parts, obs_parts)
+            if Part_i.is_orphan()})
+
+            # print("\nParts (len %d):\t      %r" % (len(self.Parts), self.Parts))
+            # print("ID'd parts (len %d): %r" % (len(union_set), union_set))
+            union_set = self.report_Parts.union(platform_parts, obs_parts,
+                                                                  orphan_parts)
+            if len(self.Parts.difference(union_set)) > 0:
+                print("\nMissing a report or orphan status for these parts:")
+                for Part_i in self.Parts.difference(union_set):
+                    print("\t%s" % Part_i)
+                for Part_i in self.Parts.difference(union_set):
+                    print("%s: Press Enter after adding missing report to import "
+                           "or press 'n' if where-used report was empty." % Part_i)
+                    answer = input("> ")
+                    if answer.lower() == "n":
+                        Part_i.set_orphan()
+                        orphan_parts.add(Part_i)
+                    else:
+                        self.import_all_reports()
+            else:
+                break
+
+    def __repr__(self):
+        return "PartsGroup object: %s" % str(self.Parts)
 
 # testing
 # Pltfm1 = Platform("658237", True)
