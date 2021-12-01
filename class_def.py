@@ -1,5 +1,8 @@
 import os
 import csv
+from datetime import datetime
+
+import pydot
 
 # dir path where this script is stored
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -70,6 +73,9 @@ class Part(object):
     def get_name(self):
         return self.name
 
+    def __lt__(self, other):
+        return self.__str__() < other.__str__()
+
     def __str__(self):
         return self.part_num
 
@@ -84,10 +90,13 @@ class Platform(Part):
         self.part_num = part_num
         self.name = name
         self.can_obs = can_obs
-        self.Parents = None
+        self.Parents = set()
 
     def get_obs_status(self, silent=False):
         return self.can_obs
+
+    def __str__(self):
+        return self.part_num
 
     def __repr__(self):
         return "Platform object: %s" % self.part_num
@@ -111,7 +120,7 @@ class PartGroup(object):
 
         # Use target_Parts as basis for Parts so same objects are used when
         # importing where-used reports.
-        self.Parts = self.Parts.union(self.target_Parts)
+        self.Parts.update(self.target_Parts)
 
         # Initialize list of primary parts that where-used reports pertain to.
         self.report_Parts = set()
@@ -303,11 +312,11 @@ class PartGroup(object):
             if Part_i.__class__.__name__ == "Platform"})
             # Now exclude the platform parts from the search for parts w/ "OBS"
             obs_parts = set({Part_i for Part_i
-            in self.Parts.difference(platform_parts)
-            if Part_i.get_obs_disp()})
+                                        in self.Parts.difference(platform_parts)
+                                                    if Part_i.get_obs_disp()})
             orphan_parts = set({Part_i for Part_i
-            in self.Parts.difference(platform_parts, obs_parts)
-            if Part_i.is_orphan()})
+                            in self.Parts.difference(platform_parts, obs_parts)
+                                                        if Part_i.is_orphan()})
 
             # print("\nParts (len %d):\t      %r" % (len(self.Parts), self.Parts))
             # print("ID'd parts (len %d): %r" % (len(union_set), union_set))
@@ -328,6 +337,78 @@ class PartGroup(object):
                         self.import_all_reports()
             else:
                 break
+
+    def export_tree_viz(self, target_group_only=False):
+        # https://graphviz.org/doc/info/attrs.html
+        # https://graphviz.org/doc/info/shapes.html
+        # https://graphviz.org/doc/info/colors.html
+        graph = pydot.Dot(str(self.target_Parts), graph_type="graph",
+                                    forcelabels=True, bgcolor="slategray4")
+        # https://stackoverflow.com/questions/19280229/graphviz-putting-a-caption-on-a-node-in-addition-to-a-label
+        graph_set = set()
+
+        if target_group_only:
+            Parts_group = self.target_Parts.copy()
+        else:
+            Parts_group = self.Parts.copy()
+        while len(Parts_group) > 0:
+            Part_i = Parts_group.pop()
+            if Part_i not in graph_set:
+                if Part_i.get_obs_status(silent=True):
+                    part_color = "darkorange"
+                else:
+                    part_color = "grey"
+
+                if Part_i.__class__.__name__ == "Platform":
+                    font_color = "green4"
+                else:
+                    font_color = "black"
+
+                if Part_i in self.target_Parts:
+                    line_col = "crimson"
+                else:
+                    line_col = "black"
+
+                graph.add_node(pydot.Node(Part_i.__str__(), shape="box3d",
+                                          style="filled", fontcolor=font_color,
+                                          color=line_col, fillcolor=part_color))
+                graph_set.add(Part_i)
+            for Parent_i in Part_i.get_parents():
+                if Parent_i not in graph_set:
+                    if Parent_i.get_obs_status(silent=True):
+                        part_color = "darkorange"
+                    else:
+                        part_color = "grey"
+
+                    if Parent_i.__class__.__name__ == "Platform":
+                        font_color = "green4"
+                    else:
+                        font_color = "black"
+
+                    if Parent_i in self.target_Parts:
+                        line_col = "crimson"
+                    else:
+                        line_col = "black"
+                    graph.add_node(pydot.Node(Parent_i.__str__(), shape="box3d",
+                                          style="filled", fontcolor=font_color,
+                                          color=line_col, fillcolor=part_color))
+                    graph_set.add(Parent_i)
+                    # Add to group so its parents are included
+                    Parts_group.add(Parent_i)
+                graph.add_edge(pydot.Edge(Parent_i.__str__(), Part_i.__str__(),
+                                                                color="black"))
+
+        timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
+        # export_path = os.path.join(SCRIPT_DIR, "export", "myplot.png")
+
+        target_str = "+".join(map(str, sorted(self.target_Parts)))
+        export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s.png"
+                                                    % (timestamp, target_str))
+
+        print("\nWriting graph to %s..." % os.path.basename(export_path))
+        graph.write_png(export_path)
+        print("...done")
+
 
     def __repr__(self):
         return "PartsGroup object: %s" % str(self.Parts)
