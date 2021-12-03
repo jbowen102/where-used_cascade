@@ -251,6 +251,8 @@ class PartGroup(object):
         else:
             print("\tPart   %s already in group (report part)" % part_num)
             ThisPart = self.get_part(part_num)
+            assert ThisPart not in self.report_Parts, ("Found multiple "
+                        "where-used reports in import folder for %s." % ThisPart)
         self.report_Parts.add(ThisPart)
 
         # Check table headers are in expected locations
