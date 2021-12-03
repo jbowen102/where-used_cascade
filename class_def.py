@@ -1,8 +1,11 @@
+print("Importing modules...")
 import os
 import csv
 from datetime import datetime
 
+import pandas as pd
 import pydot
+print("...done\n")
 
 # dir path where this script is stored
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -205,7 +208,8 @@ class PartGroup(object):
         file_list.sort()
         # ignore files not matching expected report pattern
         file_list = [file for file in file_list if (file[:3]=="SAP"
-                                       and os.path.splitext(file)[-1]==".csv")]
+                                       and os.path.splitext(file)[-1]==".xlsx")]
+
         for file_name in file_list:
             import_path = os.path.join(self.import_dir, file_name)
             self.import_report(import_path)
@@ -216,87 +220,77 @@ class PartGroup(object):
     def import_report(self, import_path):
         """Read in specific where-used report.
         """
-        with open(import_path, "r") as import_file:
-            print("\nReading data from %s" % os.path.basename(import_path))
-            import_file_it = csv.reader(import_file)
+        print("\nReading data from %s" % os.path.basename(import_path))
+        excel_data = pd.read_excel(import_path)
+        import_data = pd.DataFrame(excel_data)
 
-            raw_import_dict = {}
+        part_num = import_data.iloc[0, 2]
+        part_desc = import_data.iloc[1, 2]
 
-            for i, import_row in enumerate(import_file_it):
-                if i == 1:
-                    part_num = import_row[2]
+        # Check fields are in expected locations
+        assert import_data.iloc[0, 0] == "Material:", ("Expected "
+                        "'Material:' in cell A2. "
+                        "Check formatting in %s." % file_name)
+        assert import_data.iloc[1, 0] == "Description:", ("Expected "
+                        "'Description:' in cell A3. "
+                        "Check formatting in %s." % file_name)
 
-                    assert import_row[0] == "Material:", ("Expected "
-                                    "'Material:' in first column of row %s. "
-                                    "Check formatting in %s." % (i, file_name))
-                    assert len(part_num) >= 6, ("Found less than 6 digits "
-                       "where part number should be in third column of row %s. "
-                                    "Check formatting in %s." % (i, file_name))
+        # Rudimentary data validation
+        assert len(part_num) >= 6, ("Found less than 6 digits "
+                        "where part number should be in cell C2. "
+                        "Check formatting in %s." % file_name)
+        assert len(part_desc) > 0, ("Found empty cell where "
+          "description string should be in cell C3. "
+                        "Check formatting in %s." % file_name)
 
-                if i == 2:
-                    part_desc = import_row[2]
+        # Add report part to PartsGroup
+        if self.get_part(part_num) == False:
+            ThisPart = Part(part_num, name=part_desc)
+            print("\tAdding %s to group (report part)" % ThisPart)
+            self.add_part(ThisPart)
+        else:
+            print("\tPart   %s already in group (report part)" % part_num)
+            ThisPart = self.get_part(part_num)
+        self.report_Parts.add(ThisPart)
 
-                    assert import_row[0] == "Description:", ("Expected "
-                                    "'Description:' in first column of row %s. "
-                                    "Check formatting in %s." % (i, file_name))
-                    assert len(part_desc) > 0, ("Found empty cell where "
-                      "description string should be in third column of row %s. "
-                                    "Check formatting in %s." % (i, file_name))
+        # Check table headers are in expected locations
+        assert import_data.iloc[5, 3] == "Component", ("Expected "
+                        "'Component' in cell D7. "
+                        "Check formatting in %s." % file_name)
+        assert import_data.iloc[5, 4] == "Component Description", (
+            "Expected 'Component Description' in cell D7. "
+                "Check formatting in %s." % file_name)
 
-                    if self.get_part(part_num) == False:
-                        ThisPart = Part(part_num, name=part_desc)
-                        print("\tAdding %s to group (report part)" % ThisPart)
-                        self.add_part(ThisPart)
-                    else:
-                        print("\tPart   %s already in group (report part)" % part_num)
-                        ThisPart = self.get_part(part_num)
-                    self.report_Parts.add(ThisPart)
-                    # print("")
-                    # print("\t\tGroup: %r\n" % self.get_parts())
+        # Iterate through the results and store in
+        # if i > 6 and "End of Report" not in import_row[0]:
+        for idx in import_data.index[6:-1]:
+            parent_num = import_data.iloc[idx, 3]
+            parent_desc = import_data.iloc[idx, 4]
 
-                if i == 6:
-                    assert import_row[3] == "Component", ("Expected "
-                                    "'Component' in first column of row %s. "
-                                    "Check formatting in %s." % (i, file_name))
-                    assert import_row[4] == "Component Description", (
-                        "Expected 'Component Description' in first column of "
-                            "row %s. Check formatting in %s." % (i, file_name))
+            # Rudimentary data validation
+            assert len(parent_num) >= 6, ("Found less than 6 digits "
+                            "where part number should be in D%d. "
+                            "Check formatting in %s." % (idx+2, file_name))
+            assert len(parent_desc) > 0, ("Found empty cell where "
+                            "description string should be in cell E%d. "
+                            "Check formatting in %s." % (idx+2, file_name))
 
-                if i > 6 and "End of Report" not in import_row[0]:
-                    parent_num = import_row[3]
-                    parent_desc = import_row[4]
+            # Create and add this part to the group if not already in
+            # the Parts set.
+            if self.get_part(parent_num) == False:
+                NewParent = Part(parent_num, name=parent_desc)
+                print("\n\tAdding %s to group" % NewParent)
+                self.add_part(NewParent)
+            else:
+                print("\n\tPart   %s already in group" % parent_num)
+                NewParent = self.get_part(parent_num)
 
-                    assert len(parent_num) >= 6, ("Found less than 6 digits "
-                      "where part number should be in fourth column of row %s. "
-                                    "Check formatting in %s." % (i, file_name))
-                    assert len(parent_desc) > 0, ("Expected "
-                        "'Component Description' in first column of row %s. "
-                                    "Check formatting in %s." % (i, file_name))
-
-                    # Create and add this part to the group if not already in
-                    # the Parts set.
-                    if self.get_part(parent_num) == False:
-                        NewParent = Part(parent_num, name=parent_desc)
-                        print("\n\tAdding %s to group" % NewParent)
-                        self.add_part(NewParent)
-                    else:
-                        print("\n\tPart   %s already in group" % parent_num)
-                        NewParent = self.get_part(parent_num)
-                    # print("\t\tPart %s has parent set %r" % (NewParent,
-                    #                                    NewParent.get_parents()))
-
-                    # Add this part as a parent if not already in
-                    # the Parents set.
-                    if ThisPart.get_parent(parent_num) == False:
-                        print("\tAdding %s as parent of part %s" % (NewParent,
-                                                                      ThisPart))
-                        ThisPart.add_parent(NewParent)
-
-                    # for Part_i in self.get_parts():
-                    #     if Part_i.__class__.__name__ != "Platform":
-                    #         print("\t\tPart %s has parent set %r" % (Part_i,
-                    #                                       Part_i.get_parents()))
-                    # print("")
+            # Add this part as a parent if not already in
+            # the Parents set.
+            if ThisPart.get_parent(parent_num) == False:
+                print("\tAdding %s as parent of part %s" % (NewParent,
+                                                              ThisPart))
+                ThisPart.add_parent(NewParent)
 
         print("...done")
         print("\nParts:\t      %r" % self.Parts)
@@ -309,7 +303,7 @@ class PartGroup(object):
             # Every part should belong to one of these groups: parts w/ a report,
             # platforms, parts w/ "OBS" prefix, or orphan parts (empty where-used).
             platform_parts = set({Part_i for Part_i in self.Parts
-            if Part_i.__class__.__name__ == "Platform"})
+                                if Part_i.__class__.__name__ == "Platform"})
             # Now exclude the platform parts from the search for parts w/ "OBS"
             obs_parts = set({Part_i for Part_i
                                         in self.Parts.difference(platform_parts)
@@ -322,11 +316,12 @@ class PartGroup(object):
             # print("ID'd parts (len %d): %r" % (len(union_set), union_set))
             union_set = self.report_Parts.union(platform_parts, obs_parts,
                                                                   orphan_parts)
-            if len(self.Parts.difference(union_set)) > 0:
+            tbd_parts = self.Parts.difference(union_set)
+            if len(tbd_parts) > 0:
                 print("\nMissing a report or orphan status for these parts:")
-                for Part_i in self.Parts.difference(union_set):
+                for Part_i in tbd_parts:
                     print("\t%s" % Part_i)
-                for Part_i in self.Parts.difference(union_set):
+                for Part_i in tbd_parts:
                     print("%s: Press Enter after adding missing report to import "
                            "or press 'n' if where-used report was empty." % Part_i)
                     answer = input("> ")
