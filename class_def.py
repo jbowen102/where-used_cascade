@@ -204,6 +204,9 @@ class PartGroup(object):
     def import_all_reports(self):
         """Read in all where-used reports in import directory.
         """
+        # Initialize list of primary parts that where-used reports pertain to.
+        self.report_Parts = set()
+
         file_list = os.listdir(self.import_dir)
         file_list.sort()
         # ignore files not matching expected report pattern
@@ -213,9 +216,6 @@ class PartGroup(object):
         for file_name in file_list:
             import_path = os.path.join(self.import_dir, file_name)
             self.import_report(import_path)
-
-        # Test if any needed report is missing.
-        self.find_missing_reports()
 
     def import_report(self, import_path):
         """Read in specific where-used report.
@@ -332,6 +332,7 @@ class PartGroup(object):
                         orphan_parts.add(Part_i)
                     else:
                         self.import_all_reports()
+                        break # re-generate list
             else:
                 break
 
