@@ -101,6 +101,7 @@ class Platform(Part):
         self.name = name
         self.can_obs = can_obs
         self.Parents = set()
+        self.orphan = False
 
     def get_obs_status(self, silent=False):
         return self.can_obs
@@ -343,7 +344,7 @@ class PartGroup(object):
                         orphan_parts.add(Part_i)
                     else:
                         self.import_all_reports()
-                        break # re-generate list
+                        break # re-generate sets
             else:
                 break
 
@@ -362,6 +363,10 @@ class PartGroup(object):
                                     forcelabels=True, bgcolor=back_color)
         # https://stackoverflow.com/questions/19280229/graphviz-putting-a-caption-on-a-node-in-addition-to-a-label
         graph_set = set()
+
+        # Initialize incrementer to use making unique "X" nodes representing
+        # no where-used results.
+        inc = 0
 
         if target_group_only:
             Parts_group = self.target_Parts.copy()
@@ -392,6 +397,19 @@ class PartGroup(object):
                                           label="%s\n%s" %
                                           (Part_i.get_pn(), Part_i.get_name())))
                 graph_set.add(Part_i)
+
+            if Part_i.is_orphan():
+                # Platforms not considered orphans
+                x_node = pydot.Node("X%d" % inc, shape="box3d",
+                                          style="filled", fontcolor="crimson",
+                                          color="crimson", fillcolor=part_color,
+                                          height=0.65,
+                                          label="X")
+                graph.add_node(x_node)
+                graph.add_edge(pydot.Edge("X%d" % inc, Part_i.__str__(),
+                                                            color="crimson"))
+                inc += 1
+
             for Parent_i in Part_i.get_parents():
                 if Parent_i not in graph_set:
                     if Parent_i.get_obs_status(silent=True):
@@ -415,7 +433,8 @@ class PartGroup(object):
                                           label="%s\n%s" %
                                           (Parent_i.get_pn(), Parent_i.get_name())))
                     graph_set.add(Parent_i)
-                    # Add to group so its parents are included
+                    # Add to group so its parents are included (for case where
+                    # Parts_group starts out w/ only target parts)
                     Parts_group.add(Parent_i)
                 graph.add_edge(pydot.Edge(Parent_i.__str__(), Part_i.__str__(),
                                                                 color="black"))
