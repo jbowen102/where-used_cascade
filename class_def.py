@@ -80,6 +80,9 @@ class Part(object):
     def get_pn(self):
         return self.part_num
 
+    def set_name(self, desc):
+        self.name = desc
+
     def get_name(self):
         return self.name
 
@@ -264,6 +267,9 @@ class PartGroup(object):
                         "where-used reports in import folder for %s:\n"
                         "\t%s\n\t%s" % (ThisPart.get_pn(), ThisPart.get_report_name(),
                                                 os.path.basename(import_path)))
+            # If part doesn't have name/description stored, add it now.
+            if not ThisPart.get_name():
+                ThisPart.set_name(part_desc)
             ThisPart.set_report_name(os.path.basename(import_path))
         self.report_Parts.add(ThisPart)
 
@@ -298,6 +304,9 @@ class PartGroup(object):
             else:
                 print("\n\tPart   %s already in group" % parent_num)
                 NewParent = self.get_part(parent_num)
+                # If parent doesn't have name/description stored, add it now.
+                if not NewParent.get_name():
+                    ThisPart.set_name(parent_desc)
 
             # Add this part as a parent if not already in
             # the Parents set.
