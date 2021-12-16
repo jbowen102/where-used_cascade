@@ -28,6 +28,13 @@ class Part(object):
         # Initialize variable indicating where-used results are present (until
         # determined otherwise)
         self.orphan = False
+        self.report_name = None
+
+    def set_report_name(self, report_name):
+        self.report_name = report_name
+
+    def get_report_name(self):
+        return self.report_name
 
     def get_obs_disp(self):
         return self.obs_disp
@@ -246,13 +253,17 @@ class PartGroup(object):
         # Add report part to PartsGroup
         if self.get_part(part_num) == False:
             ThisPart = Part(part_num, name=part_desc)
+            ThisPart.set_report_name(os.path.basename(import_path))
             print("\tAdding %s to group (report part)" % ThisPart)
             self.add_part(ThisPart)
         else:
             print("\tPart   %s already in group (report part)" % part_num)
             ThisPart = self.get_part(part_num)
             assert ThisPart not in self.report_Parts, ("Found multiple "
-                        "where-used reports in import folder for %s." % ThisPart)
+                        "where-used reports in import folder for %s:\n"
+                        "\t%s\n\t%s" % (ThisPart.get_pn(), ThisPart.get_report_name(),
+                                                os.path.basename(import_path)))
+            ThisPart.set_report_name(os.path.basename(import_path))
         self.report_Parts.add(ThisPart)
 
         # Check table headers are in expected locations
@@ -413,6 +424,10 @@ class PartGroup(object):
         # export_path = os.path.join(SCRIPT_DIR, "export", "myplot.png")
 
         target_str = "+".join(map(str, sorted(self.target_Parts)))
+        if len(target_str) > 40:
+            # If length of concatenated P/Ns exceeds 40 chars, truncate to
+            # keep file name from being too long.
+            target_str = "+".join(target_str[:40].split("+")[:-1]) + "..."
         export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s.png"
                                                     % (timestamp, target_str))
 
