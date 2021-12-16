@@ -31,5 +31,6 @@ AllParts.find_missing_reports()
 AllParts.get_target_obs_status()
 # AllParts.print_obs_status_trace()
 
+# AllParts.export_tree_viz(target_group_only=True, printout=True)
 AllParts.export_tree_viz(target_group_only=True)
 # AllParts.export_tree_viz()

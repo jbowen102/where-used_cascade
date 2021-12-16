@@ -14,7 +14,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 class Part(object):
     """Object to represent a part, assy, or mod.
     """
-    def __init__(self, part_num, name=None):
+    def __init__(self, part_num, name=""):
         self.part_num = part_num
         self.name = name
         self.Parents = set()
@@ -196,7 +196,7 @@ class PartGroup(object):
                             "%s. Expected a description after P/N and dash."
                                            % (target_part, target_filename))
                 else:
-                    target_desc = None
+                    target_desc = ""
                 if target_part not in self.target_Parts:
                     self.target_Parts.add(Part(target_pn, name=target_desc))
         print("...done")
@@ -336,12 +336,19 @@ class PartGroup(object):
             else:
                 break
 
-    def export_tree_viz(self, target_group_only=False):
+    def export_tree_viz(self, target_group_only=False, printout=False):
         # https://graphviz.org/doc/info/attrs.html
         # https://graphviz.org/doc/info/shapes.html
         # https://graphviz.org/doc/info/colors.html
+        if printout:
+            back_color = "white"
+            part_color = "white"
+        else:
+            back_color = "slategray4"
+            part_color = "grey"
+
         graph = pydot.Dot(str(self.target_Parts), graph_type="graph",
-                                    forcelabels=True, bgcolor="slategray4")
+                                    forcelabels=True, bgcolor=back_color)
         # https://stackoverflow.com/questions/19280229/graphviz-putting-a-caption-on-a-node-in-addition-to-a-label
         graph_set = set()
 
@@ -353,43 +360,49 @@ class PartGroup(object):
             Part_i = Parts_group.pop()
             if Part_i not in graph_set:
                 if Part_i.get_obs_status(silent=True):
-                    part_color = "darkorange"
+                    line_col = "crimson"
                 else:
-                    part_color = "grey"
+                    line_col = "black"
 
                 if Part_i.__class__.__name__ == "Platform":
                     font_color = "green4"
                 else:
                     font_color = "black"
 
-                if Part_i in self.target_Parts:
-                    line_col = "crimson"
-                else:
-                    line_col = "black"
+                # if Part_i in self.target_Parts:
+                #     line_col = "crimson"
+                # else:
+                #     line_col = "black"
 
                 graph.add_node(pydot.Node(Part_i.__str__(), shape="box3d",
                                           style="filled", fontcolor=font_color,
-                                          color=line_col, fillcolor=part_color))
+                                          color=line_col, fillcolor=part_color,
+                                          height=0.65,
+                                          label="%s\n%s" %
+                                          (Part_i.get_pn(), Part_i.get_name())))
                 graph_set.add(Part_i)
             for Parent_i in Part_i.get_parents():
                 if Parent_i not in graph_set:
                     if Parent_i.get_obs_status(silent=True):
-                        part_color = "darkorange"
+                        line_col = "crimson"
                     else:
-                        part_color = "grey"
+                        line_col = "black"
 
                     if Parent_i.__class__.__name__ == "Platform":
                         font_color = "green4"
                     else:
                         font_color = "black"
 
-                    if Parent_i in self.target_Parts:
-                        line_col = "crimson"
-                    else:
-                        line_col = "black"
+                    # if Parent_i in self.target_Parts:
+                    #     line_col = "crimson"
+                    # else:
+                    #     line_col = "black"
                     graph.add_node(pydot.Node(Parent_i.__str__(), shape="box3d",
                                           style="filled", fontcolor=font_color,
-                                          color=line_col, fillcolor=part_color))
+                                          color=line_col, fillcolor=part_color,
+                                          height=0.65,
+                                          label="%s\n%s" %
+                                          (Parent_i.get_pn(), Parent_i.get_name())))
                     graph_set.add(Parent_i)
                     # Add to group so its parents are included
                     Parts_group.add(Parent_i)
