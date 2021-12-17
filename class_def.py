@@ -168,6 +168,9 @@ class PartGroup(object):
     def get_parts(self):
         return self.Parts
 
+    def get_target_parts(self):
+        return self.target_Parts
+
     def print_obs_status_trace(self):
         print("")
         for PartNum in self.get_parts():
@@ -357,125 +360,115 @@ class PartGroup(object):
             else:
                 break
 
-    def export_tree_viz(self, target_group_only=False, printout=False):
+    def __repr__(self):
+        return "PartsGroup object: %s" % str(self.Parts)
+
+
+class TreeGraph(object):
+    def __init__(self, PartsGr, target_group_only=False, printout=False):
         # https://graphviz.org/doc/info/attrs.html
         # https://graphviz.org/doc/info/shapes.html
         # https://graphviz.org/doc/info/colors.html
-        if printout:
-            back_color = "white"
-            part_color = "white"
-        else:
-            back_color = "slategray4"
-            part_color = "grey"
+        self.PartsGr = PartsGr
+        self.target_group_only = target_group_only
 
-        graph = pydot.Dot(str(self.target_Parts), graph_type="graph",
-                            forcelabels=True, bgcolor=back_color, rankdir="TB")
+        if printout:
+            self.back_color = "white"
+            self.part_color = "white"
+        else:
+            self.back_color = "slategray4"
+            self.part_color = "grey"
+
+        self.build_graph()
+        # self.export_graph()
+
+    def build_graph(self):
+
+        self.graph = pydot.Dot(str(self.PartsGr.get_target_parts()),
+                                        graph_type="graph", forcelabels=True,
+                                        bgcolor=self.back_color, rankdir="TB")
         # https://stackoverflow.com/questions/19280229/graphviz-putting-a-caption-on-a-node-in-addition-to-a-label
         # https://stackoverflow.com/questions/29003465/pydot-graphviz-how-to-order-horizontally-nodes-in-a-cluster-while-the-rest-of-t
 
-        # Create sub-graphs to enforce rank
-        terminal_sub = pydot.Subgraph(rank="min")
-        target_sub = pydot.Subgraph(rank="max")
+        # Create sub-graphs to enforce rank (node positioning top-to-bottom)
+        self.terminal_sub = pydot.Subgraph(rank="min")
+        self.target_sub = pydot.Subgraph(rank="max")
         # https://stackoverflow.com/questions/25734244/how-do-i-place-nodes-on-the-same-level-in-dot
         # https://stackoverflow.com/questions/20910596/line-up-the-heads-of-dot-graph-using-pydot?noredirect=1&lq=1
 
-        graph_set = set()
+        # Create set of parts to pull from and add to graph
+        if self.target_group_only:
+            Parts_set = self.PartsGr.get_target_parts().copy()
+        else:
+            Parts_set = self.PartsGr.get_parts().copy()
+        # Initialize set to hold parts already added to graph as nodes.
+        self.graph_set = set()
 
         # Initialize incrementer to use making unique "X" nodes representing
         # no where-used results.
         inc = 0
-
-        if target_group_only:
-            Parts_group = self.target_Parts.copy()
-        else:
-            Parts_group = self.Parts.copy()
-        while len(Parts_group) > 0:
-            Part_i = Parts_group.pop()
-            if Part_i not in graph_set:
-                if Part_i.get_obs_status(silent=True):
-                    line_col = "crimson"
-                else:
-                    line_col = "black"
-
-                if Part_i.__class__.__name__ == "Platform":
-                    font_color = "green4"
-                    # print("1. %s is a platform" % Part_i.get_pn())
-                else:
-                    font_color = "black"
-
-                # if Part_i in self.target_Parts:
-                #     line_col = "crimson"
-                # else:
-                #     line_col = "black"
-
-                Part_i_node = pydot.Node(Part_i.__str__(), shape="box3d",
-                                          style="filled", fontcolor=font_color,
-                                          color=line_col, fillcolor=part_color,
-                                          height=0.65,
-                                          label="%s\n%s" %
-                                          (Part_i.get_pn(), Part_i.get_name()))
-                graph.add_node(Part_i_node)
-                graph_set.add(Part_i)
-
-                if Part_i.__class__.__name__ == "Platform":
-                    terminal_sub.add_node(Part_i_node)
-                    # print("Added %s to terminal_sub" % Part_i.get_pn())
-                if Part_i in self.target_Parts:
-                    target_sub.add_node(Part_i_node)
-                    # print("Added %s to target_sub" % Part_i.get_pn())
-
+        while len(Parts_set) > 0:
+            Part_i = Parts_set.pop()
+            if Part_i not in self.graph_set:
+                self.add_node(Part_i)
             if Part_i.is_orphan():
                 # Platforms not considered orphans
                 x_node = pydot.Node("X%d" % inc, shape="box3d",
-                                          style="filled", fontcolor="crimson",
-                                          color="crimson", fillcolor=part_color,
-                                          height=0.65,
-                                          label="X")
-                graph.add_node(x_node)
-                graph.add_edge(pydot.Edge("X%d" % inc, Part_i.__str__(),
+                                      style="filled", fontcolor="crimson",
+                                      color="crimson", fillcolor=self.part_color,
+                                      height=0.65,
+                                      label="X")
+                self.graph.add_node(x_node)
+                self.graph.add_edge(pydot.Edge("X%d" % inc, Part_i.__str__(),
                                                             color="crimson"))
-                terminal_sub.add_node(x_node)
+                self.terminal_sub.add_node(x_node)
                 # print("Added X%d to terminal_sub" % inc)
                 inc += 1
 
             for Parent_i in Part_i.get_parents():
-
-                if Parent_i not in graph_set:
-                    if Parent_i.get_obs_status(silent=True):
-                        line_col = "crimson"
-                    else:
-                        line_col = "black"
-
-                    if Parent_i.__class__.__name__ == "Platform":
-                        # print("2. %s is a platform" % Parent_i.get_pn())
-                        font_color = "green4"
-                    else:
-                        font_color = "black"
-
-                    Parent_i_node = pydot.Node(Parent_i.__str__(), shape="box3d",
-                                      style="filled", fontcolor=font_color,
-                                      color=line_col, fillcolor=part_color,
-                                      height=0.65,
-                                      label="%s\n%s" %
-                                      (Parent_i.get_pn(), Parent_i.get_name()))
-                    graph.add_node(Parent_i_node)
-                    if Parent_i.__class__.__name__ == "Platform":
-                        terminal_sub.add_node(Parent_i_node)
-                        # print("Added %s to terminal_sub" % Parent_i.get_pn())
-                    graph_set.add(Parent_i)
+                if Parent_i not in self.graph_set:
+                    self.add_node(Parent_i)
                     # Add to group so its parents are included (for case where
                     # Parts_group starts out w/ only target parts)
-                    Parts_group.add(Parent_i)
-                graph.add_edge(pydot.Edge(Parent_i.__str__(), Part_i.__str__(),
-                                                                color="black"))
+                    Parts_set.add(Parent_i)
+                self.graph.add_edge(pydot.Edge(Parent_i.__str__(),
+                                               Part_i.__str__(), color="black"))
 
-        graph.add_subgraph(terminal_sub)
-        graph.add_subgraph(target_sub)
+        self.graph.add_subgraph(self.terminal_sub)
+        self.graph.add_subgraph(self.target_sub)
 
+    def add_node(self, Part_obj):
+        if Part_obj.get_obs_status(silent=True):
+            line_col = "crimson"
+        else:
+            line_col = "black"
+
+        if Part_obj.__class__.__name__ == "Platform":
+            font_color = "green4"
+            # print("1. %s is a platform" % Part_obj.get_pn())
+        else:
+            font_color = "black"
+
+        Part_obj_node = pydot.Node(Part_obj.__str__(), shape="box3d",
+                                  style="filled", fontcolor=font_color,
+                                  color=line_col, fillcolor=self.part_color,
+                                  height=0.65,
+                                  label="%s\n%s" %
+                                  (Part_obj.get_pn(), Part_obj.get_name()))
+        self.graph.add_node(Part_obj_node)
+        self.graph_set.add(Part_obj)
+
+        if Part_obj.__class__.__name__ == "Platform":
+            self.terminal_sub.add_node(Part_obj_node)
+            # print("Added %s to terminal_sub" % Part_obj.get_pn())
+        elif Part_obj in self.PartsGr.get_target_parts():
+            self.target_sub.add_node(Part_obj_node)
+            # print("Added %s to target_sub" % Part_obj.get_pn())
+
+    def export_graph(self):
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
-        # export_path = os.path.join(SCRIPT_DIR, "export", "myplot.png")
 
-        target_str = "+".join(map(str, sorted(self.target_Parts)))
+        target_str = "+".join(map(str, sorted(self.PartsGr.get_target_parts())))
         if len(target_str) > 40:
             # If length of concatenated P/Ns exceeds 40 chars, truncate to
             # keep file name from being too long.
@@ -484,12 +477,9 @@ class PartGroup(object):
                                                     % (timestamp, target_str))
 
         print("\nWriting graph to %s..." % os.path.basename(export_path))
-        graph.write_png(export_path)
+        self.graph.write_png(export_path)
         print("...done")
 
-
-    def __repr__(self):
-        return "PartsGroup object: %s" % str(self.Parts)
 
 # testing
 # Pltfm1 = Platform("658237", True)
