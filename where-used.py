@@ -23,7 +23,7 @@ args = parser.parse_args()
 AllParts = class_def.PartGroup(target_part_str=args.target_parts)
 AllParts.import_platforms(platform_dict)
 
-AllParts.import_all_reports()
+AllParts.import_all_reports(report_type="SAPTC")
 # Test if any needed report is missing.
 AllParts.find_missing_reports()
 

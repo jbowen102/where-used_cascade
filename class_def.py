@@ -139,6 +139,8 @@ class PartGroup(object):
         # Initialize list of primary parts that where-used reports pertain to.
         self.report_Parts = set()
 
+        self.report_type = None
+
         print("\nParts:\t      %r" % self.Parts)
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
@@ -215,25 +217,42 @@ class PartGroup(object):
                     self.target_Parts.add(Part(target_pn, name=target_desc))
         print("...done")
 
-    def import_all_reports(self):
+    def import_all_reports(self, report_type=None):
         """Read in all where-used reports in import directory.
         """
         # Initialize list of primary parts that where-used reports pertain to.
+        if report_type and self.report_type:
+            raise Exception("Can't pass another report type once variable set.")
+        elif report_type:
+            # Should only apply first time method called.
+            self.report_type = report_type
+        elif self.report_type:
+            # If method's already been called once w/ report type set, continue
+            # using that type.
+            pass
+        else:
+            raise Exception("Report type not specified.")
+
         self.report_Parts = set()
 
         file_list = os.listdir(self.import_dir)
         file_list.sort()
-        # ignore files not matching expected report pattern
-        file_list = [file for file in file_list if (file[:3]=="SAP"
-                                       and os.path.splitext(file)[-1]==".xlsx")]
 
         for file_name in file_list:
             import_path = os.path.join(self.import_dir, file_name)
-            self.import_report(import_path)
+            if self.report_type == "SAPTC":
+                self.import_SAPTC_report(import_path)
+            elif self.report_type == "SAP_multi":
+                self.import_SAP_multi_report(import_path)
 
-    def import_report(self, import_path):
-        """Read in specific where-used report.
+    def import_SAPTC_report(self, import_path):
+        """Read in specific where-used report from TC.
         """
+        # ignore files not matching expected report pattern
+        if not (os.path.basename(import_path)[:5]=="SAPTC"
+                                and os.path.splitext(import_path)[-1]==".xlsx"):
+            return
+
         print("\nReading data from %s" % os.path.basename(import_path))
         excel_data = pd.read_excel(import_path)
         import_data = pd.DataFrame(excel_data)
@@ -323,6 +342,10 @@ class PartGroup(object):
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
 
+
+    def import_SAP_multi_report(self):
+        pass
+
     def find_missing_reports(self):
 
         while True:
@@ -355,7 +378,7 @@ class PartGroup(object):
                         Part_i.set_orphan()
                         orphan_parts.add(Part_i)
                     else:
-                        self.import_all_reports()
+                        self.import_all_reports() # uses original report type.
                         break # re-generate sets
             else:
                 break
