@@ -383,7 +383,6 @@ class TreeGraph(object):
         # self.export_graph()
 
     def build_graph(self):
-
         self.graph = pydot.Dot(str(self.PartsGr.get_target_parts()),
                                         graph_type="graph", forcelabels=True,
                                         bgcolor=self.back_color, rankdir="TB")
@@ -431,17 +430,21 @@ class TreeGraph(object):
                     # Add to group so its parents are included (for case where
                     # Parts_group starts out w/ only target parts)
                     Parts_set.add(Parent_i)
+                if Parent_i.get_obs_status(silent=True):
+                    line_color="crimson"
+                else:
+                    line_color="black"
                 self.graph.add_edge(pydot.Edge(Parent_i.__str__(),
-                                               Part_i.__str__(), color="black"))
+                                           Part_i.__str__(), color=line_color))
 
         self.graph.add_subgraph(self.terminal_sub)
         self.graph.add_subgraph(self.target_sub)
 
     def add_node(self, Part_obj):
         if Part_obj.get_obs_status(silent=True):
-            line_col = "crimson"
+            outline_col = "crimson"
         else:
-            line_col = "black"
+            outline_col = "black"
 
         if Part_obj.__class__.__name__ == "Platform":
             font_color = "green4"
@@ -451,7 +454,7 @@ class TreeGraph(object):
 
         Part_obj_node = pydot.Node(Part_obj.__str__(), shape="box3d",
                                   style="filled", fontcolor=font_color,
-                                  color=line_col, fillcolor=self.part_color,
+                                  color=outline_col, fillcolor=self.part_color,
                                   height=0.65,
                                   label="%s\n%s" %
                                   (Part_obj.get_pn(), Part_obj.get_name()))
