@@ -23,9 +23,9 @@ args = parser.parse_args()
 AllParts = class_def.PartGroup(target_part_str=args.target_parts)
 AllParts.import_platforms(platform_dict)
 
-AllParts.import_all_reports(report_type="SAPTC")
+# AllParts.import_all_reports(report_type="SAPTC", find_missing=True)
+AllParts.import_all_reports(report_type="SAP_multi")
 # Test if any needed report is missing.
-AllParts.find_missing_reports()
 
 
 AllParts.get_target_obs_status()

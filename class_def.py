@@ -217,9 +217,11 @@ class PartGroup(object):
                     self.target_Parts.add(Part(target_pn, name=target_desc))
         print("...done")
 
-    def import_all_reports(self, report_type=None):
+    def import_all_reports(self, report_type=None, find_missing=False):
         """Read in all where-used reports in import directory.
         """
+        assert report_type in ["SAPTC", "SAP_multi"], ("The only recognized "
+                                    "report types are 'SAPTC' and 'SAP_multi'.")
         # Initialize list of primary parts that where-used reports pertain to.
         if report_type and self.report_type:
             raise Exception("Can't pass another report type once variable set.")
@@ -245,12 +247,16 @@ class PartGroup(object):
             elif self.report_type == "SAP_multi":
                 self.import_SAP_multi_report(import_path)
 
+        if find_missing:
+            self.find_missing_reports()
+
     def import_SAPTC_report(self, import_path):
-        """Read in specific where-used report from TC.
+        """Read in specific where-used report from TC's SAP plug-in.
         """
+        file_name = os.path.basename(import_path)
         # ignore files not matching expected report pattern
-        if not (os.path.basename(import_path)[:5]=="SAPTC"
-                                and os.path.splitext(import_path)[-1]==".xlsx"):
+        if not (file_name.startswith("SAPTC")
+                          and os.path.splitext(file_name)[-1].lower()==".xlsx"):
             return
 
         print("\nReading data from %s" % os.path.basename(import_path))
@@ -279,7 +285,7 @@ class PartGroup(object):
         # Add report part to PartsGroup
         if self.get_part(part_num) == False:
             ThisPart = Part(part_num, name=part_desc)
-            ThisPart.set_report_name(os.path.basename(import_path))
+            ThisPart.set_report_name(file_name)
             print("\tAdding %s to group (report part)" % ThisPart)
             self.add_part(ThisPart)
         else:
@@ -288,11 +294,11 @@ class PartGroup(object):
             assert ThisPart not in self.report_Parts, ("Found multiple "
                         "where-used reports in import folder for %s:\n"
                         "\t%s\n\t%s" % (ThisPart.get_pn(), ThisPart.get_report_name(),
-                                                os.path.basename(import_path)))
+                                                file_name))
             # If part doesn't have name/description stored, add it now.
             if not ThisPart.get_name():
                 ThisPart.set_name(part_desc)
-            ThisPart.set_report_name(os.path.basename(import_path))
+            ThisPart.set_report_name(file_name)
         self.report_Parts.add(ThisPart)
 
         # Check table headers are in expected locations
@@ -303,8 +309,7 @@ class PartGroup(object):
             "Expected 'Component Description' in cell D7. "
                 "Check formatting in %s." % file_name)
 
-        # Iterate through the results and store in
-        # if i > 6 and "End of Report" not in import_row[0]:
+        # Iterate through the results and associate parent to report part.
         for idx in import_data.index[6:-1]:
             parent_num = import_data.iloc[idx, 3]
             parent_desc = import_data.iloc[idx, 4]
@@ -328,10 +333,9 @@ class PartGroup(object):
                 NewParent = self.get_part(parent_num)
                 # If parent doesn't have name/description stored, add it now.
                 if not NewParent.get_name():
-                    ThisPart.set_name(parent_desc)
+                    NewParent.set_name(parent_desc)
 
-            # Add this part as a parent if not already in
-            # the Parents set.
+            # Add this part as a parent if not already in the Parents set.
             if ThisPart.get_parent(parent_num) == False:
                 print("\tAdding %s as parent of part %s" % (NewParent,
                                                               ThisPart))
@@ -378,7 +382,8 @@ class PartGroup(object):
                         Part_i.set_orphan()
                         orphan_parts.add(Part_i)
                     else:
-                        self.import_all_reports() # uses original report type.
+                        self.import_all_reports(find_missing=False)
+                        # uses original report type.
                         break # re-generate sets
             else:
                 break
