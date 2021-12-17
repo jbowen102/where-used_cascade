@@ -20,8 +20,9 @@ class Part(object):
         self.name = name
         self.Parents = set()
 
-        # Establish if part has "OBS" prefix in SAP
-        if self.name and len(self.name) > 3 and "OBS" in self.name[:4].upper():
+        # Establish if part has "OBS-" prefix in SAP
+        if self.name and len(self.name) > 3 and ("OBS-" in self.name[:5].upper()
+                                           or "OBS -" in self.name[:6].upper()):
             self.obs_disp = True
         else:
             self.obs_disp = False
@@ -401,26 +402,29 @@ class PartGroup(object):
         nan_index = import_data["Level"][import_data["Level"].isna()].index
         # If only one grouping exists, there will be no NaNs.
 
+        # Create dictionary to store most recent part in each "level".
+        level_dict = {}
+
         # Separate each grouping to loop through separately.
         # Identify top level of each group
         start_pos = 0
         print(import_data.to_string(max_rows=10, max_cols=7))
         for break_pos in nan_index:
-            print("\nbreak position: %d" % break_pos)
             max_level = int(import_data["Level"][break_pos-1])
+            print("\nbreak position: %d (line %d)" % (break_pos, break_pos+2))
+            print("max_level: %d" % max_level)
             # Reset to base level
             ChildPart = ReportPart
             NewParent = None
-            ref_level = 1
+            ref_level = int(import_data["Level"][start_pos])
 
             for i in import_data.index[start_pos:break_pos]:
                 # Add parts to group as parents of earlier part.
-                print("i: %s" % str(i))
-                print("line: %s" % str(i+2))
+                print("\ni: %s (line %s)" % (str(i), str(i+2)))
                 parent_num = import_data["Component number"][i]
                 parent_desc = import_data["Object description"][i]
                 this_level = int(import_data["Level"][i])
-                print("this_level: %d" % this_level)
+                print("level: %d/%d" % (this_level, max_level))
 
                 # Rudimentary data validation
                 assert len(parent_num) >= 6, ("Found less than 6 digits where "
@@ -433,15 +437,22 @@ class PartGroup(object):
                 # Parent-setting behavior depends on if level changed since last
                 # iteration.
                 if this_level > ref_level:
+                    # Higher level than group started at.
                     # Use previous iteration's part as the child for this part.
                     ChildPart = NewParent
-                elif NewParent:
-                    # Ensure this isn't the first part of the group.
+                elif NewParent and this_level < max_level:
+                    # If NewParent exists, this is not first item in group.
+                    # This part is at same level previous part.
                     # Keep child the same.
                     # Set previous part as orphan.
                     NewParent.set_orphan()
+                elif this_level > 1:
+                    # This is the first item in the group, and its level is > 1.
+                    # That means it's the parent of the last part in the lower
+                    # level - found in a preceding group.
+                    ChildPart = level_dict[this_level-1]
                 else:
-                    # For first part in group, take no action here.
+                    # For first part in group, and level 1, take no action here.
                     pass
                 print("ChildPart: %s" % ChildPart.__str__())
 
@@ -449,14 +460,16 @@ class PartGroup(object):
                 # the Parts set.
                 if self.get_part(parent_num) == False:
                     NewParent = Part(parent_num, name=parent_desc)
-                    print("\n\tAdding %s to group" % NewParent)
+                    print("\tAdding %s to group" % NewParent)
                     self.add_part(NewParent)
                 else:
-                    print("\n\tPart   %s already in group" % parent_num)
+                    print("\tPart   %s already in group" % parent_num)
                     NewParent = self.get_part(parent_num)
                     # If parent doesn't have name/description stored, add it now.
                     if not NewParent.get_name():
                         NewParent.set_name(parent_desc)
+                # Store this part as most recent for current level
+                level_dict[this_level] = NewParent
 
                 # Add this part as a parent if not already in the Parents set.
                 if ChildPart.get_parent(parent_num) == False:
@@ -468,6 +481,7 @@ class PartGroup(object):
                             and not NewParent.__class__.__name__ == "Platform"):
                     # Everything at the highest level is either an orphan or
                     # a platform
+                    print("\tSetting %s as orphan" % NewParent.__str__())
                     NewParent.set_orphan()
 
                 # Set this level as reference level for next iteration
@@ -484,10 +498,10 @@ class PartGroup(object):
 
         while True:
             # Every part should belong to one of these groups: parts w/ a report,
-            # platforms, parts w/ "OBS" prefix, or orphan parts (empty where-used).
+            # platforms, parts w/ "OBS-" prefix, or orphan parts (empty where-used).
             platform_parts = set({Part_i for Part_i in self.Parts
                                 if Part_i.__class__.__name__ == "Platform"})
-            # Now exclude the platform parts from the search for parts w/ "OBS"
+            # Now exclude the platform parts from the search for parts w/ "OBS-"
             obs_parts = set({Part_i for Part_i
                                         in self.Parts.difference(platform_parts)
                                                     if Part_i.get_obs_disp()})
