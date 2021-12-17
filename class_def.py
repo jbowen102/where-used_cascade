@@ -4,6 +4,7 @@ import csv
 from datetime import datetime
 
 import pandas as pd
+import numpy as np
 import pydot
 print("...done\n")
 
@@ -259,9 +260,10 @@ class PartGroup(object):
                           and os.path.splitext(file_name)[-1].lower()==".xlsx"):
             return
 
-        print("\nReading data from %s" % os.path.basename(import_path))
-        excel_data = pd.read_excel(import_path)
+        print("\nReading data from %s" % file_name)
+        excel_data = pd.read_excel(import_path, dtype=str)
         import_data = pd.DataFrame(excel_data)
+        # https://stackoverflow.com/a/41662442
 
         part_num = import_data.iloc[0, 2]
         part_desc = import_data.iloc[1, 2]
@@ -347,8 +349,136 @@ class PartGroup(object):
         print("Target parts: %r" % self.target_Parts)
 
 
-    def import_SAP_multi_report(self):
-        pass
+    def import_SAP_multi_report(self, import_path):
+        """Read in specific multi-level where-used report from SAP.
+        """
+        file_name = os.path.basename(import_path)
+        # ignore files not matching expected report pattern
+        if not (file_name.startswith("SAP_multi")
+                        and os.path.splitext(import_path)[-1].lower()==".xlsx"):
+            return
+
+        print("\nReading data from %s" % file_name)
+        excel_data = pd.read_excel(import_path, dtype=str)
+        import_data = pd.DataFrame(excel_data)
+        # https://stackoverflow.com/a/41662442
+
+        part_num = os.path.splitext(file_name)[0].split("SAP_multi_")[1]
+        # Allowed to have additional text after P/N as long as preceded by "_".
+        assert len(part_num) >= 6, ("Found less than 6 digits "
+                    "where part number should be in filename (after "
+                    "'SAP_multi_'). Check formatting of %s name." % file_name)
+
+        # Check fields are in expected locations
+        assert "Level" in import_data.columns, ("Expected "
+                                        "'Level' in cell A1. "
+                                        "Check formatting in %s." % file_name)
+        assert "Object description" in import_data.columns, ("Expected "
+                                        "'Object description' in cell D1. "
+                                        "Check formatting in %s." % file_name)
+        assert "Component number" in import_data.columns, ("Expected "
+                                        "'Component number' in cell E1. "
+                                        "Check formatting in %s." % file_name)
+
+        # Add report part to PartsGroup
+        if self.get_part(part_num) == False:
+            ReportPart = Part(part_num) # no description/name given
+            ReportPart.set_report_name(file_name)
+            print("\tAdding %s to group (report part)" % ReportPart)
+            self.add_part(ReportPart)
+        else:
+            print("\tPart   %s already in group (report part)" % part_num)
+            ReportPart = self.get_part(part_num)
+            assert ReportPart not in self.report_Parts, ("Found multiple "
+                  "where-used reports in import folder for %s:\n\t%s\n\t%s"
+                   % (ReportPart.get_pn(), ReportPart.get_report_name(), file_name))
+            ReportPart.set_report_name(file_name)
+        self.report_Parts.add(ReportPart)
+
+        # Add extra row of NaNs to simplify loop processing.
+        import_data.loc[len(import_data)] = np.nan
+        # Find NaNs that divide groups.
+        nan_index = import_data["Level"][import_data["Level"].isna()].index
+        # If only one grouping exists, there will be no NaNs.
+
+        # Separate each grouping to loop through separately.
+        # Identify top level of each group
+        start_pos = 0
+        print(import_data.to_string(max_rows=10, max_cols=7))
+        for break_pos in nan_index:
+            print("\nbreak position: %d" % break_pos)
+            max_level = int(import_data["Level"][break_pos-1])
+            # Reset to base level
+            ChildPart = ReportPart
+            NewParent = None
+            ref_level = 1
+
+            for i in import_data.index[start_pos:break_pos]:
+                # Add parts to group as parents of earlier part.
+                print("i: %s" % str(i))
+                print("line: %s" % str(i+2))
+                parent_num = import_data["Component number"][i]
+                parent_desc = import_data["Object description"][i]
+                this_level = int(import_data["Level"][i])
+                print("this_level: %d" % this_level)
+
+                # Rudimentary data validation
+                assert len(parent_num) >= 6, ("Found less than 6 digits where "
+                                "part number should be in cell E%d of report. "
+                           "Check formatting in %s." % (start_pos+2, file_name))
+                assert len(parent_desc) > 0, ("Found empty cell where "
+                                    "description string should be in cell D%d. "
+                            "Check formatting in %s." % (start_pos+2, file_name))
+
+                # Parent-setting behavior depends on if level changed since last
+                # iteration.
+                if this_level > ref_level:
+                    # Use previous iteration's part as the child for this part.
+                    ChildPart = NewParent
+                elif NewParent:
+                    # Ensure this isn't the first part of the group.
+                    # Keep child the same.
+                    # Set previous part as orphan.
+                    NewParent.set_orphan()
+                else:
+                    # For first part in group, take no action here.
+                    pass
+                print("ChildPart: %s" % ChildPart.__str__())
+
+                # Create and add this part to the group if not already in
+                # the Parts set.
+                if self.get_part(parent_num) == False:
+                    NewParent = Part(parent_num, name=parent_desc)
+                    print("\n\tAdding %s to group" % NewParent)
+                    self.add_part(NewParent)
+                else:
+                    print("\n\tPart   %s already in group" % parent_num)
+                    NewParent = self.get_part(parent_num)
+                    # If parent doesn't have name/description stored, add it now.
+                    if not NewParent.get_name():
+                        NewParent.set_name(parent_desc)
+
+                # Add this part as a parent if not already in the Parents set.
+                if ChildPart.get_parent(parent_num) == False:
+                    print("\tAdding %s as parent of part %s" % (NewParent,
+                                                                  ChildPart))
+                    ChildPart.add_parent(NewParent)
+
+                if (this_level == max_level
+                            and not NewParent.__class__.__name__ == "Platform"):
+                    # Everything at the highest level is either an orphan or
+                    # a platform
+                    NewParent.set_orphan()
+
+                # Set this level as reference level for next iteration
+                ref_level = this_level
+
+            start_pos = break_pos+1
+
+        print("...done")
+        print("\nParts:\t      %r" % self.Parts)
+        print("Report parts: %r" % self.report_Parts)
+        print("Target parts: %r" % self.target_Parts)
 
     def find_missing_reports(self):
 
