@@ -441,8 +441,10 @@ class PartGroup(object):
                     # Higher level than group started at.
                     # Use previous iteration's part as the child for this part.
                     ChildPart = NewParent
-                elif NewParent and this_level < max_level:
-                    # If NewParent exists, this is not first item in group.
+                elif (NewParent and this_level < max_level
+                                and NewParent.__class__.__name__ != "Platform"):
+                    # If NewParent exists (set on previous iteration), this is
+                    # not first item in group.
                     # This part is at same level previous part.
                     # Keep child the same.
                     # Set previous part as orphan.
