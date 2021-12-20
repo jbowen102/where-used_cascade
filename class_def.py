@@ -2,6 +2,7 @@ print("Importing modules...")
 import os
 import csv
 from datetime import datetime
+import getpass
 
 import pandas as pd
 import numpy as np
@@ -560,15 +561,23 @@ class TreeGraph(object):
         # self.export_graph()
 
     def build_graph(self):
+        # Get username and datestamp to include on graph.
+        username = getpass.getuser()
+        self.timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
         self.graph = pydot.Dot(str(self.PartsGr.get_target_parts()),
                                         graph_type="graph", forcelabels=True,
-                                        bgcolor=self.back_color, rankdir="TB")
+                                        bgcolor=self.back_color, rankdir="TB",
+                                        label="Graph generated %s by %s" % (
+                                                   self.timestamp.split("T")[0],
+                                                                      username),
+                                        labeljust="r")
         # https://stackoverflow.com/questions/19280229/graphviz-putting-a-caption-on-a-node-in-addition-to-a-label
         # https://stackoverflow.com/questions/29003465/pydot-graphviz-how-to-order-horizontally-nodes-in-a-cluster-while-the-rest-of-t
 
         # Create sub-graphs to enforce rank (node positioning top-to-bottom)
         self.terminal_sub = pydot.Subgraph(rank="min")
         self.target_sub = pydot.Subgraph(rank="max")
+
         # https://stackoverflow.com/questions/25734244/how-do-i-place-nodes-on-the-same-level-in-dot
         # https://stackoverflow.com/questions/20910596/line-up-the-heads-of-dot-graph-using-pydot?noredirect=1&lq=1
 
@@ -650,7 +659,6 @@ class TreeGraph(object):
             # print("Added %s to target_sub" % Part_obj.get_pn())
 
     def export_graph(self):
-        timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
         target_str = "+".join(map(str, sorted(self.PartsGr.get_target_parts())))
         filename_suffix = ""
 
@@ -682,7 +690,7 @@ class TreeGraph(object):
             target_str = ("+".join(target_str[:40-len(filename_suffix)].split(
                                                              "+")[:-1]) + "...")
         export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s%s.png"
-                                    % (timestamp, target_str, filename_suffix))
+                                % (self.timestamp, target_str, filename_suffix))
 
         print("\nWriting graph to %s..." % os.path.basename(export_path))
         self.graph.write_png(export_path)
