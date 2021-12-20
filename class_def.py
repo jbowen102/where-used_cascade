@@ -540,12 +540,14 @@ class PartGroup(object):
 
 
 class TreeGraph(object):
-    def __init__(self, PartsGr, target_group_only=False, printout=False):
+    def __init__(self, PartsGr, target_group_only=False, printout=False,
+                                                             include_desc=True):
         # https://graphviz.org/doc/info/attrs.html
         # https://graphviz.org/doc/info/shapes.html
         # https://graphviz.org/doc/info/colors.html
         self.PartsGr = PartsGr
         self.target_group_only = target_group_only
+        self.include_desc = include_desc
 
         if printout:
             self.back_color = "white"
@@ -584,7 +586,7 @@ class TreeGraph(object):
         while len(Parts_set) > 0:
             Part_i = Parts_set.pop()
             if Part_i not in self.graph_set:
-                self.add_node(Part_i)
+                self.create_node(Part_i)
             if Part_i.is_orphan():
                 # Platforms not considered orphans
                 x_node = pydot.Node("X%d" % inc, shape="box3d",
@@ -601,7 +603,7 @@ class TreeGraph(object):
 
             for Parent_i in Part_i.get_parents():
                 if Parent_i not in self.graph_set:
-                    self.add_node(Parent_i)
+                    self.create_node(Parent_i)
                     # Add to group so its parents are included (for case where
                     # Parts_group starts out w/ only target parts)
                     Parts_set.add(Parent_i)
@@ -615,7 +617,7 @@ class TreeGraph(object):
         self.graph.add_subgraph(self.terminal_sub)
         self.graph.add_subgraph(self.target_sub)
 
-    def add_node(self, Part_obj):
+    def create_node(self, Part_obj):
         if Part_obj.get_obs_status(silent=True):
             outline_col = "crimson"
         else:
@@ -627,12 +629,16 @@ class TreeGraph(object):
         else:
             font_color = "black"
 
+        if self.include_desc:
+            label_text = "%s\n%s" % (Part_obj.get_pn(), Part_obj.get_name())
+        else:
+            label_text = "%s" % Part_obj.get_pn()
+
         Part_obj_node = pydot.Node(Part_obj.__str__(), shape="box3d",
                                   style="filled", fontcolor=font_color,
                                   color=outline_col, fillcolor=self.part_color,
                                   height=0.65,
-                                  label="%s\n%s" %
-                                  (Part_obj.get_pn(), Part_obj.get_name()))
+                                  label=label_text)
         self.graph.add_node(Part_obj_node)
         self.graph_set.add(Part_obj)
 

@@ -33,5 +33,6 @@ AllParts.get_target_obs_status()
 
 # TreeViz = class_def.TreeGraph(AllParts, target_group_only=True, printout=True)
 TreeViz = class_def.TreeGraph(AllParts, target_group_only=True)
+# TreeViz = class_def.TreeGraph(AllParts, target_group_only=True, include_desc=False)
 # TreeViz = class_def.TreeGraph(AllParts)
 TreeViz.export_graph()
