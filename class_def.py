@@ -364,7 +364,8 @@ class PartGroup(object):
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
 
-        part_num = os.path.splitext(file_name)[0].split("SAP_multi_")[1]
+        part_num = os.path.splitext(file_name)[0].split(
+                                                "SAP_multi_")[1].split("_")[0]
         # Allowed to have additional text after P/N as long as preceded by "_".
         assert len(part_num) >= 6, ("Found less than 6 digits "
                     "where part number should be in filename (after "
