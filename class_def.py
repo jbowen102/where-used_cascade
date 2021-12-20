@@ -39,6 +39,18 @@ class Part(object):
     def get_report_name(self):
         return self.report_name
 
+    def get_report_suffix(self):
+        if "SAP_multi_w" in self.report_name:
+            report_prefix = "SAP_multi_w_"
+        elif "SAPTC" in self.report_name:
+            report_prefix = "SAPTC_BOM_Report_"
+        suffix = "_".join(os.path.splitext(self.report_name)[0].split(
+                                               report_prefix)[1].split("_")[1:])
+        if len(suffix) > 0:
+            return suffix
+        else:
+            return False
+
     def get_obs_disp(self):
         return self.obs_disp
 
@@ -136,10 +148,10 @@ class PartGroup(object):
         assert len(self.target_Parts) >= 1, "No target parts identified."
 
         # Use target_Parts as basis for Parts so same objects are used when
-        # importing where-used reports.
+        # importing reports.
         self.Parts.update(self.target_Parts)
 
-        # Initialize list of primary parts that where-used reports pertain to.
+        # Initialize list of primary parts that reports pertain to.
         self.report_Parts = set()
 
         self.report_type = None
@@ -220,12 +232,14 @@ class PartGroup(object):
                     self.target_Parts.add(Part(target_pn, name=target_desc))
         print("...done")
 
-    def import_all_reports(self, report_type=None, find_missing=False):
-        """Read in all where-used reports in import directory.
+    def import_all_reports(self, report_type=None, find_missing=True):
+        """Read in all (where-used or BOM) reports in import directory.
         """
-        assert report_type in ["SAPTC", "SAP_multi"], ("The only recognized "
-                                    "report types are 'SAPTC' and 'SAP_multi'.")
-        # Initialize list of primary parts that where-used reports pertain to.
+        if report_type:
+            assert report_type in ["SAPTC", "SAP_multi_w", "SAP_multi_BOM"], (
+                "The only recognized report types are 'SAPTC', 'SAP_multi_w', "
+                                                        "and 'SAP_multi_BOM'.")
+        # Initialize list of primary parts that reports pertain to.
         if report_type and self.report_type:
             raise Exception("Can't pass another report type once variable set.")
         elif report_type:
@@ -247,8 +261,12 @@ class PartGroup(object):
             import_path = os.path.join(self.import_dir, file_name)
             if self.report_type == "SAPTC":
                 self.import_SAPTC_report(import_path)
-            elif self.report_type == "SAP_multi":
-                self.import_SAP_multi_report(import_path)
+            elif self.report_type == "SAP_multi_w":
+                self.import_SAP_multi_w_report(import_path)
+                find_missing = False
+            elif self.report_type == "SAP_multi_BOM":
+                self.import_SAP_multi_BOM_report(import_path)
+                find_missing = False
 
         if find_missing:
             self.find_missing_reports()
@@ -296,9 +314,8 @@ class PartGroup(object):
             print("\tPart   %s already in group (report part)" % part_num)
             ThisPart = self.get_part(part_num)
             assert ThisPart not in self.report_Parts, ("Found multiple "
-                        "where-used reports in import folder for %s:\n"
-                        "\t%s\n\t%s" % (ThisPart.get_pn(), ThisPart.get_report_name(),
-                                                file_name))
+                       "where-used reports in import folder for %s:\n\t%s\n\t%s"
+                   % (ThisPart.get_pn(), ThisPart.get_report_name(), file_name))
             # If part doesn't have name/description stored, add it now.
             if not ThisPart.get_name():
                 ThisPart.set_name(part_desc)
@@ -351,12 +368,12 @@ class PartGroup(object):
         print("Target parts: %r" % self.target_Parts)
 
 
-    def import_SAP_multi_report(self, import_path):
+    def import_SAP_multi_w_report(self, import_path):
         """Read in specific multi-level where-used report from SAP.
         """
         file_name = os.path.basename(import_path)
         # ignore files not matching expected report pattern
-        if not (file_name.startswith("SAP_multi")
+        if not (file_name.startswith("SAP_multi_w")
                         and os.path.splitext(import_path)[-1].lower()==".xlsx"):
             return
 
@@ -366,11 +383,11 @@ class PartGroup(object):
         # https://stackoverflow.com/a/41662442
 
         part_num = os.path.splitext(file_name)[0].split(
-                                                "SAP_multi_")[1].split("_")[0]
+                                                "SAP_multi_w_")[1].split("_")[0]
         # Allowed to have additional text after P/N as long as preceded by "_".
         assert len(part_num) >= 6, ("Found less than 6 digits "
                     "where part number should be in filename (after "
-                    "'SAP_multi_'). Check formatting of %s name." % file_name)
+                    "'SAP_multi_w_'). Check formatting of %s name." % file_name)
 
         # Check fields are in expected locations
         assert "Level" in import_data.columns, ("Expected "
@@ -498,6 +515,10 @@ class PartGroup(object):
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
 
+    def import_SAP_multi_BOM_report(self):
+        pass
+
+
     def find_missing_reports(self):
 
         while True:
@@ -567,7 +588,7 @@ class TreeGraph(object):
         self.graph = pydot.Dot(str(self.PartsGr.get_target_parts()),
                                         graph_type="graph", forcelabels=True,
                                         bgcolor=self.back_color, rankdir="TB",
-                                        label="Graph generated %s by %s" % (
+                                        label="%s %s" % (
                                                    self.timestamp.split("T")[0],
                                                                       username),
                                         labeljust="r")
@@ -666,17 +687,16 @@ class TreeGraph(object):
             # only one target part present, see if its report has a suffix. If
             # so, prompt for inclusion in graph filename.
             target_Part = self.PartsGr.get_target_parts().pop()
-            report_name = target_Part.get_report_name()
-            possible_suffix = "_".join(os.path.splitext(report_name)[0].split(
-                                                "SAP_multi_")[1].split("_")[1:])
-            if len(possible_suffix) > 0:
+            report_suffix = target_Part.get_report_suffix()
+
+            if report_suffix:
                 suffix_answer = ""
                 while suffix_answer.lower() not in ["y", "n"]:
                     print("\nAppend report suffix '%s' to graph filename? [Y/N]"
-                                                            % possible_suffix)
+                                                                % report_suffix)
                     suffix_answer = input("> ")
                 if suffix_answer.lower() == "y":
-                    filename_suffix = "_" + possible_suffix
+                    filename_suffix = "_" + report_suffix
                 else:
                     pass
                     # Keep it blank
