@@ -645,14 +645,38 @@ class TreeGraph(object):
 
     def export_graph(self):
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
-
         target_str = "+".join(map(str, sorted(self.PartsGr.get_target_parts())))
-        if len(target_str) > 40:
+        filename_suffix = ""
+
+        if len(self.PartsGr.get_target_parts()) == 1:
+            # only one target part present, see if its report has a suffix. If
+            # so, prompt for inclusion in graph filename.
+            target_Part = self.PartsGr.get_target_parts().pop()
+            report_name = target_Part.get_report_name()
+            possible_suffix = "_".join(os.path.splitext(report_name)[0].split(
+                                                "SAP_multi_")[1].split("_")[1:])
+            if len(possible_suffix) > 0:
+                suffix_answer = ""
+                while suffix_answer.lower() not in ["y", "n"]:
+                    print("\nAppend report suffix '%s' to graph filename? [Y/N]"
+                                                            % possible_suffix)
+                    suffix_answer = input("> ")
+                if suffix_answer.lower() == "y":
+                    filename_suffix = "_" + possible_suffix
+                else:
+                    pass
+                    # Keep it blank
+            if len(filename_suffix) > 25:
+                filename_suffix = filename_suffix[:25]
+                print("Truncated suffix to '%s'" % filename_suffix)
+
+        if len(target_str) > (40 - len(filename_suffix)):
             # If length of concatenated P/Ns exceeds 40 chars, truncate to
             # keep file name from being too long.
-            target_str = "+".join(target_str[:40].split("+")[:-1]) + "..."
-        export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s.png"
-                                                    % (timestamp, target_str))
+            target_str = ("+".join(target_str[:40-len(filename_suffix)].split(
+                                                             "+")[:-1]) + "...")
+        export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s%s.png"
+                                    % (timestamp, target_str, filename_suffix))
 
         print("\nWriting graph to %s..." % os.path.basename(export_path))
         self.graph.write_png(export_path)
