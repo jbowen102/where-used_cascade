@@ -44,6 +44,10 @@ class Part(object):
             report_prefix = "SAP_multi_w_"
         elif "SAPTC" in self.report_name:
             report_prefix = "SAPTC_BOM_Report_"
+        elif "SAP_multi_BOM" in self.report_name:
+            report_prefix = "SAP_multi_BOM_"
+        else:
+            raise Exception("Report prefix doesn't match any recognized format.")
         suffix = "_".join(os.path.splitext(self.report_name)[0].split(
                                                report_prefix)[1].split("_")[1:])
         if len(suffix) > 0:
@@ -145,8 +149,6 @@ class PartGroup(object):
         else:
             self.import_target_parts()
 
-        assert len(self.target_Parts) >= 1, "No target parts identified."
-
         # Use target_Parts as basis for Parts so same objects are used when
         # importing reports.
         self.Parts.update(self.target_Parts)
@@ -191,6 +193,9 @@ class PartGroup(object):
     def get_target_parts(self):
         return self.target_Parts
 
+    def get_report_parts(self):
+        return self.report_Parts
+
     def get_platforms(self):
         return set({Part_i for Part_i in self.Parts
                                                if isinstance(Part_i, Platform)})
@@ -209,6 +214,8 @@ class PartGroup(object):
         for TargetPart in self.target_Parts:
             print("\t%s: Can OBS? %r" % (TargetPart,
                                         TargetPart.get_obs_status(silent=True)))
+        if len(self.target_Parts) == 0:
+            print("No target parts.")
 
     def import_target_parts(self):
         """Imports all part numbers stored in import/target_parts.txt.
@@ -222,6 +229,10 @@ class PartGroup(object):
             lines = target_file_it.read().splitlines()
             # https://stackoverflow.com/questions/19062574/read-file-into-list-and-strip-newlines
             for i, target_part in enumerate(lines):
+                if not target_part:
+                    # Skip blank lines
+                    print("\tLine %d empty" % i)
+                    continue
                 target_pn = target_part.split("-")[0]
                 assert len(target_pn) >= 6, ("Encountered %s in file %s. "
                                             "Expected a P/N of length >= 6."
@@ -237,6 +248,8 @@ class PartGroup(object):
                     target_desc = ""
                 if target_part not in self.target_Parts:
                     self.target_Parts.add(Part(target_pn, name=target_desc))
+        if len(self.target_Parts) == 0:
+            print("No target parts found in %s" % target_filename)
         print("...done")
 
     def import_all_reports(self, report_type=None, find_missing=True):
@@ -263,6 +276,16 @@ class PartGroup(object):
 
         file_list = os.listdir(self.import_dir)
         file_list.sort()
+
+        if self.report_type in ["SAPTC", "SAP_multi_w"]:
+            assert len(self.target_Parts) >= 1, "No target parts identified."
+        if self.report_type == "SAP_multi_BOM":
+            # Wipe out target_Parts in case they were left in place from
+            # previous use w/ other report type.
+            # Remove from full parts list unless it's a platform
+            removal_set = self.target_Parts
+            self.target_Parts = set()
+            self.Parts.difference_update(removal_set - self.get_platforms())
 
         for file_name in file_list:
             import_path = os.path.join(self.import_dir, file_name)
@@ -410,7 +433,6 @@ class PartGroup(object):
         # Add report part to PartsGroup
         if self.get_part(part_num) == False:
             ReportPart = Part(part_num) # no description/name given
-            ReportPart.set_report_name(file_name)
             print("\tAdding %s to group (report part)" % ReportPart)
             self.add_part(ReportPart)
         else:
@@ -419,7 +441,7 @@ class PartGroup(object):
             assert ReportPart not in self.report_Parts, ("Found multiple "
                   "where-used reports in import folder for %s:\n\t%s\n\t%s"
                    % (ReportPart.get_pn(), ReportPart.get_report_name(), file_name))
-            ReportPart.set_report_name(file_name)
+        ReportPart.set_report_name(file_name)
         self.report_Parts.add(ReportPart)
 
         # Add extra row of NaNs to simplify loop processing.
@@ -455,10 +477,10 @@ class PartGroup(object):
                 # Rudimentary data validation
                 assert len(parent_num) >= 6, ("Found less than 6 digits where "
                                 "part number should be in cell E%d of report. "
-                           "Check formatting in %s." % (start_pos+2, file_name))
+                                   "Check formatting in %s." % (i+2, file_name))
                 assert len(parent_desc) > 0, ("Found empty cell where "
-                                    "description string should be in cell D%d. "
-                            "Check formatting in %s." % (start_pos+2, file_name))
+                                   "description string should be in cell D%d. "
+                                   "Check formatting in %s." % (i+2, file_name))
 
                 # Parent-setting behavior depends on if level changed since last
                 # iteration.
@@ -522,8 +544,115 @@ class PartGroup(object):
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
 
-    def import_SAP_multi_BOM_report(self):
-        pass
+
+    def import_SAP_multi_BOM_report(self, import_path):
+        """Read in specific multi-level where-used report from SAP.
+        """
+        file_name = os.path.basename(import_path)
+        # ignore files not matching expected report pattern
+        if not (file_name.startswith("SAP_multi_BOM")
+                        and os.path.splitext(import_path)[-1].lower()==".xlsx"):
+            return
+
+        print("\nReading data from %s" % file_name)
+        excel_data = pd.read_excel(import_path, dtype=str)
+        import_data = pd.DataFrame(excel_data)
+        # https://stackoverflow.com/a/41662442
+
+        part_num = os.path.splitext(file_name)[0].split(
+                                            "SAP_multi_BOM_")[1].split("_")[0]
+        # Allowed to have additional text after P/N as long as preceded by "_".
+        assert len(part_num) >= 6, ("Found less than 6 digits "
+                  "where part number should be in filename (after "
+                  "'SAP_multi_BOM_'). Check formatting of %s name." % file_name)
+
+        # Check fields are in expected locations
+        assert "Explosion level" in import_data.columns, ("Expected "
+                                        "'Explosion level' in cell B1. "
+                                        "Check formatting in %s." % file_name)
+        assert "Component number" in import_data.columns, ("Expected "
+                                        "'Component number' in cell D1. "
+                                        "Check formatting in %s." % file_name)
+        assert "Object description" in import_data.columns, ("Expected "
+                                        "'Object description' in cell E1. "
+                                        "Check formatting in %s." % file_name)
+
+        # Add report part to PartsGroup
+        if self.get_part(part_num) == False:
+            ReportPart = Part(part_num) # no description/name given
+            print("\tAdding %s to group (report part)" % ReportPart)
+            self.add_part(ReportPart)
+        else:
+            print("\tPart   %s already in group (report part)" % part_num)
+            ReportPart = self.get_part(part_num)
+            assert ReportPart not in self.report_Parts, ("Found multiple "
+                              "reports in import folder for %s:\n\t%s\n\t%s"
+               % (ReportPart.get_pn(), ReportPart.get_report_name(), file_name))
+        ReportPart.set_report_name(file_name)
+        self.report_Parts.add(ReportPart)
+
+        print(import_data.to_string(max_rows=10, max_cols=7))
+
+        # Create dictionary to store most recent part in each "level".
+        level_dict = {}
+
+        Parent = ReportPart
+        LastPart = Parent
+        previous_level = 0
+        for i in import_data.index:
+            print("\ni: %s (line %s)" % (str(i), str(i+2)))
+            part_num = import_data["Component number"][i]
+            part_desc = import_data["Object description"][i]
+            if len(part_num) < 6 and part_num.startswith("CU"):
+                # Skip "custom options"
+                continue
+            current_level = int(import_data["Explosion level"][i].split(".")[-1])
+            print("level: %d" % current_level)
+
+            # Rudimentary data validation
+            assert len(part_num) >= 6, ("Found less than 6 digits where "
+                            "part number should be in cell D%d of report. "
+                       "Check formatting in %s." % (i+2, file_name))
+            assert len(part_desc) > 0, ("Found empty cell where "
+                                "description string should be in cell E%d. "
+                        "Check formatting in %s." % (i+2, file_name))
+
+            if current_level > previous_level:
+                print("current_level > previous_level")
+                Parent = LastPart
+                level_dict[previous_level] = LastPart
+            elif current_level <  previous_level:
+                print("current_level < previous_level")
+                Parent = level_dict[current_level-1]
+            else:
+                # same level; keep Parent the same.
+                pass
+
+            # Create and add this part to the group if not already in
+            # the Parts set.
+            if self.get_part(part_num) == False:
+                NewPart = Part(part_num, name=part_desc)
+                print("\tAdding %s to group" % NewPart)
+                self.add_part(NewPart)
+            else:
+                print("\tPart   %s already in group" % part_num)
+                NewPart = self.get_part(part_num)
+                # If parent doesn't have name/description stored, add it now.
+                if not NewPart.get_name():
+                    NewPart.set_name(part_desc)
+
+            # Add this parent to this part if not already in the Parents set.
+            if NewPart.get_parent(Parent.get_pn()) == False:
+                print("\tAdding %s as parent of part %s" % (Parent, NewPart))
+                NewPart.add_parent(Parent)
+
+            LastPart = NewPart
+            previous_level = current_level
+
+        print("...done")
+        print("\nParts:\t      %r" % self.Parts)
+        print("Report parts: %r" % self.report_Parts)
+        print("Target parts: %r" % self.target_Parts)
 
 
     def find_missing_reports(self):
@@ -693,14 +822,20 @@ class TreeGraph(object):
             # print("Added %s to target_sub" % Part_obj.get_pn())
 
     def export_graph(self):
-        target_str = "+".join(map(str, sorted(self.PartsGr.get_target_parts())))
+        if self.PartsGr.get_target_parts():
+            pn_set = self.PartsGr.get_target_parts()
+        else:
+            # Cases where multi-BOM(s) used don't have target parts.
+            pn_set = self.PartsGr.get_report_parts()
+
+        pn_str = "+".join(map(str, sorted(pn_set)))
         filename_suffix = ""
 
-        if len(self.PartsGr.get_target_parts()) == 1:
+        if len(pn_set) == 1:
             # only one target part present, see if its report has a suffix. If
             # so, prompt for inclusion in graph filename.
-            target_Part = self.PartsGr.get_target_parts().pop()
-            report_suffix = target_Part.get_report_suffix()
+            suffix_Part = pn_set.pop()
+            report_suffix = suffix_Part.get_report_suffix()
 
             if report_suffix:
                 suffix_answer = ""
@@ -717,13 +852,13 @@ class TreeGraph(object):
                 filename_suffix = filename_suffix[:25]
                 print("Truncated suffix to '%s'" % filename_suffix)
 
-        if len(target_str) > (40 - len(filename_suffix)):
+        if len(pn_str) > (40 - len(filename_suffix)):
             # If length of concatenated P/Ns exceeds 40 chars, truncate to
             # keep file name from being too long.
-            target_str = ("+".join(target_str[:40-len(filename_suffix)].split(
+            pn_str = ("+".join(pn_str[:40-len(filename_suffix)].split(
                                                              "+")[:-1]) + "...")
         export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s%s.png"
-                                % (self.timestamp, target_str, filename_suffix))
+                                % (self.timestamp, pn_str, filename_suffix))
 
         print("\nWriting graph to %s..." % os.path.basename(export_path))
         self.graph.write_png(export_path)

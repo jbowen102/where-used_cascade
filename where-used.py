@@ -23,9 +23,9 @@ args = parser.parse_args()
 AllParts = class_def.PartGroup(target_part_str=args.target_parts)
 AllParts.import_platforms(platform_dict)
 
-AllParts.import_all_reports(report_type="SAPTC")
+# AllParts.import_all_reports(report_type="SAPTC")
 # AllParts.import_all_reports(report_type="SAP_multi_w")
-# AllParts.import_all_reports(report_type="SAP_multi_BOM")
+AllParts.import_all_reports(report_type="SAP_multi_BOM")
 
 
 AllParts.get_target_obs_status()
