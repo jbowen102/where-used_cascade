@@ -182,16 +182,23 @@ class PartGroup(object):
                 return Part_i
         return False # only happens if no match found in loop.
 
-    def get_parts(self):
-        return self.Parts
+    def get_parts(self, omit_platforms=False):
+        if omit_platforms:
+            return self.Parts - self.get_platforms()
+        else:
+            return self.Parts
 
     def get_target_parts(self):
         return self.target_Parts
 
+    def get_platforms(self):
+        return set({Part_i for Part_i in self.Parts
+                                               if isinstance(Part_i, Platform)})
+
     def print_obs_status_trace(self):
         print("")
         for PartNum in self.get_parts():
-            if PartNum.__class__.__name__ == "Platform":
+            if isinstance(PartNum, Platform):
                 print("%s is a platform" % PartNum)
             else:
                 print("%s has parents %r" % (PartNum, PartNum.get_parents()))
@@ -460,7 +467,7 @@ class PartGroup(object):
                     # Use previous iteration's part as the child for this part.
                     ChildPart = NewParent
                 elif (NewParent and this_level < max_level
-                                and NewParent.__class__.__name__ != "Platform"):
+                                        and not isinstance(NewParent, Platform)):
                     # If NewParent exists (set on previous iteration), this is
                     # not first item in group.
                     # This part is at same level previous part.
@@ -499,7 +506,7 @@ class PartGroup(object):
                     ChildPart.add_parent(NewParent)
 
                 if (this_level == max_level
-                            and not NewParent.__class__.__name__ == "Platform"):
+                                       and not isinstance(NewParent, Platform)):
                     # Everything at the highest level is either an orphan or
                     # a platform
                     print("\tSetting %s as orphan" % NewParent.__str__())
@@ -524,8 +531,7 @@ class PartGroup(object):
         while True:
             # Every part should belong to one of these groups: parts w/ a report,
             # platforms, parts w/ "OBS-" prefix, or orphan parts (empty where-used).
-            platform_parts = set({Part_i for Part_i in self.Parts
-                                if Part_i.__class__.__name__ == "Platform"})
+            platform_parts = self.get_platforms()
             # Now exclude the platform parts from the search for parts w/ "OBS-"
             obs_parts = set({Part_i for Part_i
                                         in self.Parts.difference(platform_parts)
@@ -585,28 +591,35 @@ class TreeGraph(object):
         # Get username and datestamp to include on graph.
         username = getpass.getuser()
         self.timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
-        self.graph = pydot.Dot(str(self.PartsGr.get_target_parts()),
-                                        graph_type="graph", forcelabels=True,
-                                        bgcolor=self.back_color, rankdir="TB",
-                                        label="%s %s" % (
+        if self.PartsGr.get_target_parts():
+            part_nums = self.PartsGr.get_target_parts()
+        else:
+            # Cases where multi-BOM(s) used don't have target parts.
+            part_nums = self.PartsGr.get_report_parts()
+        self.graph = pydot.Dot(str(part_nums), graph_type="graph",
+                                            forcelabels=True,
+                                            bgcolor=self.back_color,
+                                            rankdir="TB",
+                                            label="%s %s" % (
                                                    self.timestamp.split("T")[0],
                                                                       username),
-                                        labeljust="r")
+                                            labeljust="r")
         # https://stackoverflow.com/questions/19280229/graphviz-putting-a-caption-on-a-node-in-addition-to-a-label
         # https://stackoverflow.com/questions/29003465/pydot-graphviz-how-to-order-horizontally-nodes-in-a-cluster-while-the-rest-of-t
 
         # Create sub-graphs to enforce rank (node positioning top-to-bottom)
         self.terminal_sub = pydot.Subgraph(rank="min")
         self.target_sub = pydot.Subgraph(rank="max")
-
         # https://stackoverflow.com/questions/25734244/how-do-i-place-nodes-on-the-same-level-in-dot
         # https://stackoverflow.com/questions/20910596/line-up-the-heads-of-dot-graph-using-pydot?noredirect=1&lq=1
 
-        # Create set of parts to pull from and add to graph
+        # Create set of parts to pull from and add to graph.
         if self.target_group_only:
             Parts_set = self.PartsGr.get_target_parts().copy()
         else:
-            Parts_set = self.PartsGr.get_parts().copy()
+            # Omit unreferenced platforms from the graph. Needed platforms will
+            # be pulled in as parents when needed.
+            Parts_set = self.PartsGr.get_parts(omit_platforms=True).copy()
         # Initialize set to hold parts already added to graph as nodes.
         self.graph_set = set()
 
@@ -653,7 +666,7 @@ class TreeGraph(object):
         else:
             outline_col = "black"
 
-        if Part_obj.__class__.__name__ == "Platform":
+        if isinstance(Part_obj, Platform):
             font_color = "green4"
             # print("1. %s is a platform" % Part_obj.get_pn())
         else:
@@ -672,7 +685,7 @@ class TreeGraph(object):
         self.graph.add_node(Part_obj_node)
         self.graph_set.add(Part_obj)
 
-        if Part_obj.__class__.__name__ == "Platform":
+        if isinstance(Part_obj, Platform):
             self.terminal_sub.add_node(Part_obj_node)
             # print("Added %s to terminal_sub" % Part_obj.get_pn())
         elif Part_obj in self.PartsGr.get_target_parts():
