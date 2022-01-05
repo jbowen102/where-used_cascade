@@ -28,11 +28,13 @@ AllParts.import_platforms(platform_dict)
 AllParts.import_all_reports(report_type="SAP_multi_BOM")
 
 
-AllParts.get_target_obs_status()
+# AllParts.get_target_obs_status()
 # AllParts.print_obs_status_trace()
 
 # TreeViz = class_def.TreeGraph(AllParts, target_group_only=True, printout=True)
 # TreeViz = class_def.TreeGraph(AllParts, target_group_only=True)
 # TreeViz = class_def.TreeGraph(AllParts, target_group_only=True, include_desc=False)
-TreeViz = class_def.TreeGraph(AllParts)
-TreeViz.export_graph()
+# TreeViz = class_def.TreeGraph(AllParts)
+# TreeViz.export_graph()
+
+AllParts.export_parts_set(omit_platforms=True)

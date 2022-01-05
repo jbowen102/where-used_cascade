@@ -693,6 +693,24 @@ class PartGroup(object):
                 break
 
 
+    def export_parts_set(self, omit_platforms=False):
+        """Output CSV file with where-used results.
+        """
+        timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
+        export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s_parts_set.csv"
+                                       % (timestamp, self.get_pn_string(31)))
+
+        # Create new CSV file and write out.
+        with open(export_path, 'w+') as output_file:
+            output_file_csv = csv.writer(output_file, dialect="excel")
+
+            print("\nWriting combined data to %s..." % os.path.basename(export_path))
+            parts_list = list(self.get_parts(omit_platforms))
+            for part in parts_list:
+                output_file_csv.writerow([part.get_pn(), part.get_name()])
+            print("...done")
+
+
     def get_pn_string(self, max_len=40):
         """Generate string to represent P/N group for export filenames."""
         if self.get_target_parts():
@@ -869,7 +887,6 @@ class TreeGraph(object):
         print("\nWriting graph to %s..." % os.path.basename(export_path))
         self.graph.write_png(export_path)
         print("...done")
-
 
 
 # testing
