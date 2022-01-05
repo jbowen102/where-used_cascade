@@ -692,6 +692,47 @@ class PartGroup(object):
             else:
                 break
 
+
+    def get_pn_string(self, max_len=40):
+        """Generate string to represent P/N group for export filenames."""
+        if self.get_target_parts():
+            pn_set = self.get_target_parts()
+        else:
+            # Cases where multi-BOM(s) used don't have target parts.
+            pn_set = self.get_report_parts()
+
+        pn_str = "+".join(map(str, sorted(pn_set)))
+        pn_str_suffix = ""
+
+        if len(pn_set) == 1:
+            # only one target part present, see if its report has a suffix. If
+            # so, prompt for inclusion in graph filename.
+            suffix_Part = pn_set.pop()
+            report_suffix = suffix_Part.get_report_suffix()
+
+            if report_suffix:
+                suffix_answer = ""
+                while suffix_answer.lower() not in ["y", "n"]:
+                    print("\nAppend report suffix '%s' to P/N string? [Y/N]"
+                                                                % report_suffix)
+                    suffix_answer = input("> ")
+                if suffix_answer.lower() == "y":
+                    pn_str_suffix = "_" + report_suffix
+                else:
+                    pass
+                    # Keep it blank
+            if len(pn_str_suffix) > max_len-15:
+                pn_str_suffix = pn_str_suffix[:max_len-15]
+                print("Truncated suffix to '%s'" % pn_str_suffix)
+
+        if len(pn_str) > (max_len - len(pn_str_suffix)):
+            # If length of concatenated P/Ns exceeds 40 chars, truncate to
+            # keep file name from being too long.
+            pn_str = ("+".join(pn_str[:max_len-len(pn_str_suffix)].split(
+                                                             "+")[:-1]) + "...")
+
+        return "%s%s" % (pn_str, pn_str_suffix)
+
     def __repr__(self):
         return "PartsGroup object: %s" % str(self.Parts)
 
@@ -822,47 +863,13 @@ class TreeGraph(object):
             # print("Added %s to target_sub" % Part_obj.get_pn())
 
     def export_graph(self):
-        if self.PartsGr.get_target_parts():
-            pn_set = self.PartsGr.get_target_parts()
-        else:
-            # Cases where multi-BOM(s) used don't have target parts.
-            pn_set = self.PartsGr.get_report_parts()
-
-        pn_str = "+".join(map(str, sorted(pn_set)))
-        filename_suffix = ""
-
-        if len(pn_set) == 1:
-            # only one target part present, see if its report has a suffix. If
-            # so, prompt for inclusion in graph filename.
-            suffix_Part = pn_set.pop()
-            report_suffix = suffix_Part.get_report_suffix()
-
-            if report_suffix:
-                suffix_answer = ""
-                while suffix_answer.lower() not in ["y", "n"]:
-                    print("\nAppend report suffix '%s' to graph filename? [Y/N]"
-                                                                % report_suffix)
-                    suffix_answer = input("> ")
-                if suffix_answer.lower() == "y":
-                    filename_suffix = "_" + report_suffix
-                else:
-                    pass
-                    # Keep it blank
-            if len(filename_suffix) > 25:
-                filename_suffix = filename_suffix[:25]
-                print("Truncated suffix to '%s'" % filename_suffix)
-
-        if len(pn_str) > (40 - len(filename_suffix)):
-            # If length of concatenated P/Ns exceeds 40 chars, truncate to
-            # keep file name from being too long.
-            pn_str = ("+".join(pn_str[:40-len(filename_suffix)].split(
-                                                             "+")[:-1]) + "...")
-        export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s%s.png"
-                                % (self.timestamp, pn_str, filename_suffix))
+        export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s_tree.png"
+                           % (self.timestamp, self.PartsGr.get_pn_string(36)))
 
         print("\nWriting graph to %s..." % os.path.basename(export_path))
         self.graph.write_png(export_path)
         print("...done")
+
 
 
 # testing
