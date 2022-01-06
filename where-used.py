@@ -25,8 +25,7 @@ AllParts.import_platforms(platform_dict)
 
 # AllParts.import_all_reports(report_type="SAPTC")
 # AllParts.import_all_reports(report_type="SAP_multi_w")
-AllParts.import_all_reports(report_type="SAP_multi_BOM")
-
+# AllParts.import_all_reports(report_type="SAP_multi_BOM")
 
 # AllParts.get_target_obs_status()
 # AllParts.print_obs_status_trace()
@@ -37,4 +36,8 @@ AllParts.import_all_reports(report_type="SAP_multi_BOM")
 # TreeViz = class_def.TreeGraph(AllParts)
 # TreeViz.export_graph()
 
-AllParts.export_parts_set(omit_platforms=True)
+# AllParts.export_parts_set(omit_platforms=True)
+
+# Union BOM
+AllParts.import_all_reports(report_type="SAP_multi_BOM", bom_union=True)
+AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)

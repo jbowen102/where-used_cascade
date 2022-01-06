@@ -213,6 +213,9 @@ class PartGroup(object):
     def get_report_parts(self):
         return self.report_Parts
 
+    def get_union_bom(self):
+        return self.union_bom
+
     def get_platforms(self):
         return set({Part_i for Part_i in self.Parts
                                                if isinstance(Part_i, Platform)})
@@ -246,9 +249,9 @@ class PartGroup(object):
             lines = target_file_it.read().splitlines()
             # https://stackoverflow.com/questions/19062574/read-file-into-list-and-strip-newlines
             for i, target_part in enumerate(lines):
-                if not target_part:
+                if not target_part or target_part.startswith("#"):
                     # Skip blank lines
-                    print("\tLine %d empty" % i)
+                    print("\tLine %d empty or commented out" % i)
                     continue
                 target_pn = target_part.split("-")[0]
                 assert len(target_pn) >= 6, ("Encountered %s in file %s. "
@@ -269,8 +272,15 @@ class PartGroup(object):
             print("No target parts found in %s" % target_filename)
         print("...done")
 
-    def import_all_reports(self, report_type=None, find_missing=True):
+    def import_all_reports(self, report_type=None, find_missing=True,
+                                                              bom_union=False):
         """Read in all (where-used or BOM) reports in import directory.
+        Report type should be specified the first time this method is called.
+        Subsequent calls assume same report type.
+        find_missing should only be specified the first time method is called.
+        bom_union used if program is being run with intent to collect the BOMs
+        of multiple parts and return the union of the P/Ns. The target_parts set
+        in this case contains the P/Ns whose BOMs should be union'd.
         """
         if report_type:
             assert report_type in ["SAPTC", "SAP_multi_w", "SAP_multi_BOM"], (
@@ -296,13 +306,17 @@ class PartGroup(object):
 
         if self.report_type in ["SAPTC", "SAP_multi_w"]:
             assert len(self.target_Parts) >= 1, "No target parts identified."
-        if self.report_type == "SAP_multi_BOM":
+        elif self.report_type == "SAP_multi_BOM" and not bom_union:
             # Wipe out target_Parts in case they were left in place from
             # previous use w/ other report type.
             # Remove from full parts list unless it's a platform
             removal_set = self.target_Parts
             self.target_Parts = set()
             self.Parts.difference_update(removal_set - self.get_platforms())
+        elif bom_union:
+            # Initialize list to be used for cases of finding union of target parts'
+            # BOMs.
+            self.union_bom = self.target_Parts.copy()
 
         for file_name in file_list:
             import_path = os.path.join(self.import_dir, file_name)
@@ -312,7 +326,7 @@ class PartGroup(object):
                 self.import_SAP_multi_w_report(import_path)
                 find_missing = False
             elif self.report_type == "SAP_multi_BOM":
-                self.import_SAP_multi_BOM_report(import_path)
+                self.import_SAP_multi_BOM_report(import_path, bom_union)
                 find_missing = False
 
         if find_missing:
@@ -562,7 +576,7 @@ class PartGroup(object):
         print("Target parts: %r" % self.target_Parts)
 
 
-    def import_SAP_multi_BOM_report(self, import_path):
+    def import_SAP_multi_BOM_report(self, import_path, union_bom=False):
         """Read in specific multi-level where-used report from SAP.
         """
         file_name = os.path.basename(import_path)
@@ -663,6 +677,17 @@ class PartGroup(object):
                 print("\tAdding %s as parent of part %s" % (Parent, NewPart))
                 NewPart.add_parent(Parent)
 
+            # If program being run to collect all parts in target multi-level
+            # BOMs, find out if this part has a target part above it in the tree.
+            if union_bom:
+                for Part_i in self.target_Parts:
+                    # if Part_i in NewPart.get_parents_above(set()):
+                    if Part_i in NewPart.get_parents_above():
+                        # print("Parents of %s: %r" % (NewPart, NewPart.get_parents()))
+                        # print("Parents above %s: %r" % (NewPart, NewPart.get_parents_above(set())))
+                        # input("Found %s above %s" % (Part_i, NewPart))
+                        self.union_bom.add(NewPart)
+
             LastPart = NewPart
             previous_level = current_level
 
@@ -670,6 +695,7 @@ class PartGroup(object):
         print("\nParts:\t      %r" % self.Parts)
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
+        # print("union BOM: %r" % self.union_bom)
 
 
     def find_missing_reports(self):
@@ -710,31 +736,41 @@ class PartGroup(object):
                 break
 
 
-    def export_parts_set(self, omit_platforms=False):
+    def export_parts_set(self, pn_set=None, omit_platforms=False):
         """Output CSV file with where-used results.
+        Default is to export all parts in object. Can specify which parts set
+        to export.
         """
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
         export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s_parts_set.csv"
-                                       % (timestamp, self.get_pn_string(31)))
+                                  % (timestamp, self.get_pn_string(max_len=31)))
+
+        if pn_set == None:
+            parts_list = list(self.get_parts(omit_platforms))
+        else:
+            parts_list = list(pn_set)
 
         # Create new CSV file and write out.
         with open(export_path, 'w+') as output_file:
             output_file_csv = csv.writer(output_file, dialect="excel")
 
             print("\nWriting combined data to %s..." % os.path.basename(export_path))
-            parts_list = list(self.get_parts(omit_platforms))
             for part in parts_list:
                 output_file_csv.writerow([part.get_pn(), part.get_name()])
             print("...done")
 
 
-    def get_pn_string(self, max_len=40):
-        """Generate string to represent P/N group for export filenames."""
-        if self.get_target_parts():
-            pn_set = self.get_target_parts()
+    def get_pn_string(self, pn_set_spec=False, max_len=40):
+        """Generate string to represent P/N group for export filenames.
+        If P/N set not specified, use target parts. If no target parts present,
+        use report parts."""
+        if pn_set_spec:
+            pn_set = pn_set_spec.copy()
+        elif self.get_target_parts():
+            pn_set = self.get_target_parts().copy()
         else:
             # Cases where multi-BOM(s) used don't have target parts.
-            pn_set = self.get_report_parts()
+            pn_set = self.get_report_parts().copy()
 
         pn_str = "+".join(map(str, sorted(pn_set)))
         pn_str_suffix = ""
@@ -899,7 +935,7 @@ class TreeGraph(object):
 
     def export_graph(self):
         export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s_tree.png"
-                           % (self.timestamp, self.PartsGr.get_pn_string(36)))
+                     % (self.timestamp, self.PartsGr.get_pn_string(max_len=36)))
 
         print("\nWriting graph to %s..." % os.path.basename(export_path))
         self.graph.write_png(export_path)
