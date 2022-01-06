@@ -96,6 +96,23 @@ class Part(object):
     def get_parents(self):
         return self.Parents
 
+    def get_parents_above(self, buffer=None):
+        """Returns union of all parents above this part in the heirarchy,
+        recursing up the tree
+        """
+        if buffer==None:
+            buffer = set()
+            # This is required rather than setting the default buffer to set()
+            # in the parameters. Causes unwanted behavior.
+            # https://nikos7am.com/posts/mutable-default-arguments/
+        for Part_i in self.get_parents():
+            if isinstance(Part_i, Platform):
+                buffer.add(Part_i)
+            else:
+                buffer.update(set({Part_i}), Part_i.get_parents_above(buffer))
+
+        return buffer
+
     def get_pn(self):
         return self.part_num
 
