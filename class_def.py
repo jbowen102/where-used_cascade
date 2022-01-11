@@ -246,30 +246,34 @@ class PartGroup(object):
         target_filename = "target_parts.txt"
         target_parts_path = os.path.join(self.import_dir, target_filename)
         assert os.path.exists(target_parts_path), "Can't find %s" % target_filename
+
         print("\nImporting list of target parts from %s..." % target_filename)
         with open(target_parts_path, "r") as target_file_it:
             lines = target_file_it.read().splitlines()
             # https://stackoverflow.com/questions/19062574/read-file-into-list-and-strip-newlines
-            for i, target_part in enumerate(lines):
-                if not target_part or target_part.startswith("#"):
+            for i, target_part_line in enumerate(lines):
+                if not target_part_line or target_part_line.startswith("#"):
                     # Skip blank lines
                     print("\tLine %d empty or commented out" % i)
                     continue
-                target_pn = target_part.split("-")[0]
+                target_pn = target_part_line.split("-")[0]
                 assert len(target_pn) >= 6, ("Encountered %s in file %s. "
                                             "Expected a P/N of length >= 6."
-                                           % (target_part, target_filename))
-                if len(target_part.split("-")) > 1:
+                                          % (target_part_line, target_filename))
+                if len(target_part_line.split("-")) > 1:
                     # Including description isn't necessary in target_parts
                     # list.
-                    target_desc = target_part[len(target_pn)+1:]
+                    target_desc = target_part_line[len(target_pn)+1:]
                     assert len(target_desc) > 1, ("Encountered %s in file "
                             "%s. Expected a description after P/N and dash."
-                                           % (target_part, target_filename))
+                                           % (target_part_line, target_filename))
                 else:
                     target_desc = ""
-                if target_part not in self.target_Parts:
+
+                # make sure it's not duplicated in target_parts list
+                if target_pn not in map(str, self.target_Parts):
                     self.target_Parts.add(Part(target_pn, name=target_desc))
+
         if len(self.target_Parts) == 0:
             print("No target parts found in %s" % target_filename)
         print("...done")
