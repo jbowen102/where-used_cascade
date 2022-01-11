@@ -40,7 +40,9 @@ class Part(object):
         return self.report_name
 
     def get_report_suffix(self):
-        if "SAP_multi_w" in self.report_name:
+        if not self.report_name:
+            return None
+        elif "SAP_multi_w" in self.report_name:
             report_prefix = "SAP_multi_w_"
         elif "SAPTC" in self.report_name:
             report_prefix = "SAPTC_BOM_Report_"
@@ -53,7 +55,7 @@ class Part(object):
         if len(suffix) > 0:
             return suffix
         else:
-            return False
+            return None
 
     def get_obs_disp(self):
         return self.obs_disp
@@ -776,8 +778,8 @@ class PartGroup(object):
         pn_str_suffix = ""
 
         if len(pn_set) == 1:
-            # only one target part present, see if its report has a suffix. If
-            # so, prompt for inclusion in graph filename.
+            # only one target part present; see if its report has a suffix. If
+            # so, prompt for inclusion in string.
             suffix_Part = pn_set.pop()
             report_suffix = suffix_Part.get_report_suffix()
 
