@@ -155,9 +155,9 @@ class Platform(Part):
 
 
 class PartGroup(object):
-    def __init__(self, starting_set=set(), target_part_str=False):
+    def __init__(self, target_part_str=False):
         self.import_dir = os.path.join(SCRIPT_DIR, "import")
-        self.Parts = starting_set
+        self.Parts = set()
 
         self.target_Parts = set()
         if target_part_str:
@@ -312,9 +312,8 @@ class PartGroup(object):
             # Wipe out target_Parts in case they were left in place from
             # previous use w/ other report type.
             # Remove from full parts list unless it's a platform
-            removal_set = self.target_Parts
+            self.Parts.difference_update(self.target_Parts - self.get_platforms())
             self.target_Parts = set()
-            self.Parts.difference_update(removal_set - self.get_platforms())
         elif bom_union:
             # Initialize list to be used for cases of finding union of target parts'
             # BOMs.
