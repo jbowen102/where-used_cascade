@@ -337,7 +337,7 @@ class PartGroup(object):
         if find_missing:
             self.find_missing_reports()
 
-    def import_SAPTC_report(self, import_path):
+    def import_SAPTC_report(self, import_path, verbose=False):
         """Read in specific where-used report from TC's SAP plug-in.
         """
         file_name = os.path.basename(import_path)
@@ -374,10 +374,12 @@ class PartGroup(object):
         if self.get_part(part_num) == False:
             ThisPart = Part(part_num, name=part_desc)
             ThisPart.set_report_name(file_name)
-            print("\tAdding %s to group (report part)" % ThisPart)
+            if verbose:
+                print("\tAdding %s to group (report part)" % ThisPart)
             self.add_part(ThisPart)
         else:
-            print("\tPart   %s already in group (report part)" % part_num)
+            if verbose:
+                print("\tPart   %s already in group (report part)" % part_num)
             ThisPart = self.get_part(part_num)
             assert ThisPart not in self.report_Parts, ("Found multiple "
                        "where-used reports in import folder for %s:\n\t%s\n\t%s"
@@ -413,10 +415,12 @@ class PartGroup(object):
             # the Parts set.
             if self.get_part(parent_num) == False:
                 NewParent = Part(parent_num, name=parent_desc)
-                print("\n\tAdding %s to group" % NewParent)
+                if verbose:
+                    print("\n\tAdding %s to group" % NewParent)
                 self.add_part(NewParent)
             else:
-                print("\n\tPart   %s already in group" % parent_num)
+                if verbose:
+                    print("\n\tPart   %s already in group" % parent_num)
                 NewParent = self.get_part(parent_num)
                 # If parent doesn't have name/description stored, add it now.
                 if not NewParent.get_name():
@@ -424,7 +428,8 @@ class PartGroup(object):
 
             # Add this part as a parent if not already in the Parents set.
             if ThisPart.get_parent(parent_num) == False:
-                print("\tAdding %s as parent of part %s" % (NewParent,
+                if verbose:
+                    print("\tAdding %s as parent of part %s" % (NewParent,
                                                               ThisPart))
                 ThisPart.add_parent(NewParent)
 
@@ -434,7 +439,7 @@ class PartGroup(object):
         print("Target parts: %r" % self.target_Parts)
 
 
-    def import_SAP_multi_w_report(self, import_path):
+    def import_SAP_multi_w_report(self, import_path, verbose=False):
         """Read in specific multi-level where-used report from SAP.
         """
         file_name = os.path.basename(import_path)
@@ -469,10 +474,12 @@ class PartGroup(object):
         # Add report part to PartsGroup
         if self.get_part(part_num) == False:
             ReportPart = Part(part_num) # no description/name given
-            print("\tAdding %s to group (report part)" % ReportPart)
+            if verbose:
+                print("\tAdding %s to group (report part)" % ReportPart)
             self.add_part(ReportPart)
         else:
-            print("\tPart   %s already in group (report part)" % part_num)
+            if verbose:
+                print("\tPart   %s already in group (report part)" % part_num)
             ReportPart = self.get_part(part_num)
             assert ReportPart not in self.report_Parts, ("Found multiple "
                   "where-used reports in import folder for %s:\n\t%s\n\t%s"
@@ -492,11 +499,13 @@ class PartGroup(object):
         # Separate each grouping to loop through separately.
         # Identify top level of each group
         start_pos = 0
-        print(import_data.to_string(max_rows=10, max_cols=7))
+        if verbose:
+            print(import_data.to_string(max_rows=10, max_cols=7))
         for break_pos in nan_index:
             max_level = int(import_data["Level"][break_pos-1])
-            print("\nbreak position: %d (line %d)" % (break_pos, break_pos+2))
-            print("max_level: %d" % max_level)
+            if verbose:
+                print("\nbreak position: %d (line %d)" % (break_pos, break_pos+2))
+                print("max_level: %d" % max_level)
             # Reset to base level
             ChildPart = ReportPart
             NewParent = None
@@ -504,11 +513,13 @@ class PartGroup(object):
 
             for i in import_data.index[start_pos:break_pos]:
                 # Add parts to group as parents of earlier part.
-                print("\ni: %s (line %s)" % (str(i), str(i+2)))
+                if verbose:
+                    print("\ni: %s (line %s)" % (str(i), str(i+2)))
                 parent_num = import_data["Component number"][i]
                 parent_desc = import_data["Object description"][i]
                 this_level = int(import_data["Level"][i])
-                print("level: %d/%d" % (this_level, max_level))
+                if verbose:
+                    print("level: %d/%d" % (this_level, max_level))
 
                 # Rudimentary data validation
                 assert len(parent_num) >= 6, ("Found less than 6 digits where "
@@ -540,16 +551,19 @@ class PartGroup(object):
                 else:
                     # For first part in group, and level 1, take no action here.
                     pass
-                print("ChildPart: %s" % ChildPart.__str__())
+                if verbose:
+                    print("ChildPart: %s" % ChildPart.__str__())
 
                 # Create and add this part to the group if not already in
                 # the Parts set.
                 if self.get_part(parent_num) == False:
                     NewParent = Part(parent_num, name=parent_desc)
-                    print("\tAdding %s to group" % NewParent)
+                    if verbose:
+                        print("\tAdding %s to group" % NewParent)
                     self.add_part(NewParent)
                 else:
-                    print("\tPart   %s already in group" % parent_num)
+                    if verbose:
+                        print("\tPart   %s already in group" % parent_num)
                     NewParent = self.get_part(parent_num)
                     # If parent doesn't have name/description stored, add it now.
                     if not NewParent.get_name():
@@ -559,7 +573,8 @@ class PartGroup(object):
 
                 # Add this part as a parent if not already in the Parents set.
                 if ChildPart.get_parent(parent_num) == False:
-                    print("\tAdding %s as parent of part %s" % (NewParent,
+                    if verbose:
+                        print("\tAdding %s as parent of part %s" % (NewParent,
                                                                   ChildPart))
                     ChildPart.add_parent(NewParent)
 
@@ -567,7 +582,8 @@ class PartGroup(object):
                                        and not isinstance(NewParent, Platform)):
                     # Everything at the highest level is either an orphan or
                     # a platform
-                    print("\tSetting %s as orphan" % NewParent.__str__())
+                    if verbose:
+                        print("\tSetting %s as orphan" % NewParent.__str__())
                     NewParent.set_orphan()
 
                 # Set this level as reference level for next iteration
@@ -581,7 +597,7 @@ class PartGroup(object):
         print("Target parts: %r" % self.target_Parts)
 
 
-    def import_SAP_multi_BOM_report(self, import_path, union_bom=False):
+    def import_SAP_multi_BOM_report(self, import_path, union_bom=False, verbose=False):
         """Read in specific multi-level where-used report from SAP.
         """
         file_name = os.path.basename(import_path)
@@ -616,10 +632,12 @@ class PartGroup(object):
         # Add report part to PartsGroup
         if self.get_part(part_num) == False:
             ReportPart = Part(part_num) # no description/name given
-            print("\tAdding %s to group (report part)" % ReportPart)
+            if verbose:
+                print("\tAdding %s to group (report part)" % ReportPart)
             self.add_part(ReportPart)
         else:
-            print("\tPart   %s already in group (report part)" % part_num)
+            if verbose:
+                print("\tPart   %s already in group (report part)" % part_num)
             ReportPart = self.get_part(part_num)
             assert ReportPart not in self.report_Parts, ("Found multiple "
                               "reports in import folder for %s:\n\t%s\n\t%s"
@@ -627,7 +645,8 @@ class PartGroup(object):
         ReportPart.set_report_name(file_name)
         self.report_Parts.add(ReportPart)
 
-        print(import_data.to_string(max_rows=10, max_cols=7))
+        if verbose:
+            print(import_data.to_string(max_rows=10, max_cols=7))
 
         # Create dictionary to store most recent part in each "level".
         level_dict = {}
@@ -636,14 +655,16 @@ class PartGroup(object):
         LastPart = Parent
         previous_level = 0
         for i in import_data.index:
-            print("\ni: %s (line %s)" % (str(i), str(i+2)))
+            if verbose:
+                print("\ni: %s (line %s)" % (str(i), str(i+2)))
             part_num = import_data["Component number"][i]
             part_desc = import_data["Object description"][i]
             if len(part_num) < 6 and part_num.startswith("CU"):
                 # Skip "custom options"
                 continue
             current_level = int(import_data["Explosion level"][i].split(".")[-1])
-            print("level: %d" % current_level)
+            if verbose:
+                print("level: %d" % current_level)
 
             # Rudimentary data validation
             assert len(part_num) >= 6, ("Found less than 6 digits where "
@@ -654,11 +675,13 @@ class PartGroup(object):
                         "Check formatting in %s." % (i+2, file_name))
 
             if current_level > previous_level:
-                print("current_level > previous_level")
+                if verbose:
+                    print("current_level > previous_level")
                 Parent = LastPart
                 level_dict[previous_level] = LastPart
             elif current_level <  previous_level:
-                print("current_level < previous_level")
+                if verbose:
+                    print("current_level < previous_level")
                 Parent = level_dict[current_level-1]
             else:
                 # same level; keep Parent the same.
@@ -668,10 +691,12 @@ class PartGroup(object):
             # the Parts set.
             if self.get_part(part_num) == False:
                 NewPart = Part(part_num, name=part_desc)
-                print("\tAdding %s to group" % NewPart)
+                if verbose:
+                    print("\tAdding %s to group" % NewPart)
                 self.add_part(NewPart)
             else:
-                print("\tPart   %s already in group" % part_num)
+                if verbose:
+                    print("\tPart   %s already in group" % part_num)
                 NewPart = self.get_part(part_num)
                 # If parent doesn't have name/description stored, add it now.
                 if not NewPart.get_name():
@@ -679,7 +704,8 @@ class PartGroup(object):
 
             # Add this parent to this part if not already in the Parents set.
             if NewPart.get_parent(Parent.get_pn()) == False:
-                print("\tAdding %s as parent of part %s" % (Parent, NewPart))
+                if verbose:
+                    print("\tAdding %s as parent of part %s" % (Parent, NewPart))
                 NewPart.add_parent(Parent)
 
             # If program being run to collect all parts in target multi-level
