@@ -279,7 +279,7 @@ class PartGroup(object):
         print("...done")
 
     def import_all_reports(self, report_type=None, find_missing=True,
-                                                              bom_union=False):
+                                           bom_union=False, import_subdir=None):
         """Read in all (where-used or BOM) reports in import directory.
         Report type should be specified the first time this method is called.
         Subsequent calls assume same report type.
@@ -307,7 +307,12 @@ class PartGroup(object):
 
         self.report_Parts = set()
 
-        file_list = os.listdir(self.import_dir)
+        if import_subdir:
+            import_dir = os.path.join(self.import_dir, import_subdir)
+        else:
+            import_dir = self.import_dir
+
+        file_list = os.listdir(import_dir)
         file_list.sort()
 
         if self.report_type in ["SAPTC", "SAP_multi_w"]:
@@ -324,7 +329,7 @@ class PartGroup(object):
             self.union_bom = self.target_Parts.copy()
 
         for file_name in file_list:
-            import_path = os.path.join(self.import_dir, file_name)
+            import_path = os.path.join(import_dir, file_name)
             if self.report_type == "SAPTC":
                 self.import_SAPTC_report(import_path)
             elif self.report_type == "SAP_multi_w":
@@ -724,6 +729,7 @@ class PartGroup(object):
 
         print("...done")
         print("\nParts:\t      %r" % self.Parts)
+        # print("\nPart count:\t%d" % len(self.Parts))
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
         # print("union BOM: %r" % self.union_bom)

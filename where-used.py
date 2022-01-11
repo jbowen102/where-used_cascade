@@ -40,4 +40,14 @@ AllParts.import_platforms(platform_dict)
 
 # Union BOM
 AllParts.import_all_reports(report_type="SAP_multi_BOM", bom_union=True)
+
+# hack to eliminate already-seen parts
+AllParts2 = class_def.PartGroup(target_part_str=args.target_parts)
+AllParts2.import_platforms(platform_dict)
+AllParts2.import_all_reports(report_type="SAP_multi_BOM",
+                                            import_subdir="previous_multi-BOMs")
+for Part_i in AllParts.get_parts():
+    if AllParts2.get_part(Part_i.get_pn()):
+        AllParts.union_bom.discard(Part_i)
+
 AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)
