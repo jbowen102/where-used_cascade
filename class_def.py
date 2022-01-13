@@ -174,21 +174,13 @@ class PartGroup(object):
     report_Parts attribute contains set of parts which have reports in import
     folder.
     """
-    def __init__(self, target_part_str=False):
+    def __init__(self):
         self.import_dir = os.path.join(SCRIPT_DIR, "import")
         self.Parts = set()
 
+        # Initialize list of parts of interest. To be populated depending on
+        # program operating mode (in import_all_reports method).
         self.target_Parts = set()
-        if target_part_str:
-            target_parts = target_part_str.split(",")
-            # Assumes no descriptions given along w/ P/Ns through terminal.
-            for target_pn in target_parts:
-                self.target_Parts.add(Part(target_pn))
-        else:
-            self.import_target_parts()
-
-        # Add target parts to overall Parts set.
-        self.Parts.update(self.target_Parts)
 
         # Initialize list of parts that reports are generated for.
         self.report_Parts = set()
@@ -235,7 +227,47 @@ class PartGroup(object):
         return self.report_Parts
 
     def get_union_bom(self):
-        return self.union_bom
+        """Used to collect the (multi-level) BOMs of multiple parts and return
+        the union of those P/Ns. The target_Parts set in this case contains the
+        P/Ns whose BOMs should be union'd.
+        Should be used after reading in multi-level BOM containing each target
+        part.
+        """
+        # Ensure reports have been imported already.
+        assert self.report_Parts, "No reports imported."
+
+        if not self.target_Parts:
+            self.import_target_parts(parts_update=False)
+
+        # Ensure target parts are included in parts found in reports. Otherwise
+        # will be missing its BOM members.
+        if not self.target_Parts.issubset(self.Parts):
+            missing_target_parts = self.target_Parts - self.target_Parts.intersection(self.Parts)
+            print("\n%d of %d target parts not found in report(s):" %
+                        (len(missing_target_parts), len(self.target_Parts)))
+            for pn in missing_target_parts:
+                print("\t%s" % pn)
+            print("")
+            raise Exception("%d of %d target parts not found in report(s):" %
+                        (len(missing_target_parts), len(self.target_Parts)))
+
+        # Delay adding target parts to self.Parts so above check can be conducted.
+        self.Parts.update(self.target_Parts)
+
+        # Start w/ target parts as basis for union BOM.
+        union_bom = self.target_Parts.copy()
+        # Test each part in group to see if the union of its parents (all the
+        # way up the tree) contains any of the target parts. If so, add this
+        # part to the union BOM.
+        for Part_i in self.Parts:
+            if Part_i in union_bom:
+                continue
+            elif self.target_Parts.intersection(Part_i.get_parents_above()):
+                # print("Parents of %s: %r" % (NewPart, NewPart.get_parents()))
+                # print("Parents above %s: %r" % (NewPart, NewPart.get_parents_above(set())))
+                union_bom.add(Part_i)
+
+        return union_bom
 
     def get_platforms(self):
         return set({Part_i for Part_i in self.Parts
@@ -262,7 +294,7 @@ class PartGroup(object):
         if len(self.target_Parts) == 0:
             print("No target parts.")
 
-    def import_target_parts(self):
+    def import_target_parts(self, parts_update=True):
         """Imports all part numbers stored in import/target_parts.txt.
         Format of target_parts file can be either [P/N] or [P/N]-[DESCRIPTION].
         """
@@ -277,7 +309,7 @@ class PartGroup(object):
             for i, target_part_line in enumerate(lines):
                 if not target_part_line or target_part_line.startswith("#"):
                     # Skip blank lines
-                    print("\tLine %d empty or commented out" % i)
+                    # print("\tLine %d empty or commented out" % i)
                     continue
                 target_pn = target_part_line.split("-")[0]
                 assert len(target_pn) >= 6, ("Encountered %s in file %s. "
@@ -293,23 +325,33 @@ class PartGroup(object):
                 else:
                     target_desc = ""
 
-                # make sure it's not duplicated in target_parts list
-                if target_pn not in map(str, self.target_Parts):
-                    self.target_Parts.add(Part(target_pn, name=target_desc))
+                if target_pn in map(str, self.target_Parts):
+                    # Make sure it's not duplicated in target_parts list
+                    # May not be in self.Parts yet
+                    continue
+                elif self.get_part(target_pn) == False:
+                    TargetPart = Part(target_pn, name=target_desc)
+                else:
+                    TargetPart = self.get_part(target_pn)
+
+                self.target_Parts.add(TargetPart)
+                # If target_parts file contains a duplicate, TargetPart will be
+                # original object and .add() will do nothing.
+
+        if parts_update:
+            # Add target parts to overall Parts set.
+            self.Parts.update(self.target_Parts)
 
         if len(self.target_Parts) == 0:
             print("No target parts found in %s" % target_filename)
         print("...done")
 
     def import_all_reports(self, report_type=None, find_missing=True,
-                                           bom_union=False, import_subdir=None):
+                                                           import_subdir=None):
         """Read in all (where-used or multi-BOM) reports in import directory.
         Report type should be specified the first time this method is called.
         Subsequent calls assume same report type.
         find_missing should only be specified the first time method is called.
-        bom_union used if program is being run with intent to collect the BOMs
-        of multiple parts and return the union of the P/Ns. The target_Parts set
-        in this case contains the P/Ns whose BOMs should be union'd.
         """
         if report_type:
             assert report_type in ["SAPTC", "SAP_multi_w", "SAP_multi_BOM"], (
@@ -339,18 +381,14 @@ class PartGroup(object):
         file_list.sort()
 
         if self.report_type in ["SAPTC", "SAP_multi_w"]:
+            self.import_target_parts()
             assert len(self.target_Parts) >= 1, "No target parts identified."
-        elif self.report_type == "SAP_multi_BOM" and not bom_union:
-            # Wipe out target_Parts in case they were left in place from
-            # previous use w/ other report type. target parts not applicable
-            # when using SAP_multi_BOM report type.
-            # Remove from full parts list unless it's a platform
-            self.Parts.difference_update(self.target_Parts - self.get_platforms())
-            self.target_Parts = set()
-        elif bom_union:
-            # Initialize list to be used for cases of finding union of target parts'
-            # BOMs.
-            self.union_bom = self.target_Parts.copy()
+        elif self.report_type == "SAP_multi_BOM":
+            # Don't import target_Parts; not applicable when using SAP_multi_BOM
+            # report type for standard case.
+            # For case of creating union_bom, import_target_parts() called in
+            # get_union_bom() - after reports imported.
+            pass
 
         for file_name in file_list:
             import_path = os.path.join(import_dir, file_name)
@@ -360,7 +398,7 @@ class PartGroup(object):
                 self.import_SAP_multi_w_report(import_path)
                 find_missing = False
             elif self.report_type == "SAP_multi_BOM":
-                self.import_SAP_multi_BOM_report(import_path, bom_union)
+                self.import_SAP_multi_BOM_report(import_path)
                 find_missing = False
 
         if find_missing:
@@ -628,7 +666,7 @@ class PartGroup(object):
         print("Target parts: %r" % self.target_Parts)
 
 
-    def import_SAP_multi_BOM_report(self, import_path, union_bom=False, verbose=False):
+    def import_SAP_multi_BOM_report(self, import_path, verbose=False):
         """Read in a multi-level BOM exported from SAP CS12.
         Create Parts objects and link parts based on BOM heirarchy.
         """
@@ -740,15 +778,6 @@ class PartGroup(object):
                     print("\tAdding %s as parent of part %s" % (Parent, NewPart))
                 NewPart.add_parent(Parent)
 
-            # If program being run to collect all parts in target multi-level
-            # BOMs, find out if this part has a target part above it in the tree.
-            if union_bom:
-                for Part_i in self.target_Parts:
-                    if Part_i in NewPart.get_parents_above():
-                        # print("Parents of %s: %r" % (NewPart, NewPart.get_parents()))
-                        # print("Parents above %s: %r" % (NewPart, NewPart.get_parents_above(set())))
-                        self.union_bom.add(NewPart)
-
             LastPart = NewPart
             previous_level = current_level
 
@@ -757,7 +786,6 @@ class PartGroup(object):
         print("\nPart count:\t%d" % len(self.Parts))
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
-        # print("union BOM: %r" % self.union_bom)
 
 
     def find_missing_reports(self):
