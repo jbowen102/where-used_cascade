@@ -14,7 +14,9 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # https://stackoverflow.com/questions/29768937/return-the-file-path-of-the-file-not-the-current-directory
 
 class Part(object):
-    """Object to represent a part, assy, or mod.
+    """Object to represent a part, assy, or mod, to be used in building BOM
+    structure among other Parts.
+    Can add other parts to Parents set or mark as orphan.
     """
     def __init__(self, part_num, name=""):
         self.part_num = part_num
@@ -28,9 +30,9 @@ class Part(object):
         else:
             self.obs_disp = False
 
-        # Initialize variable indicating where-used results are present (until
-        # determined otherwise)
+        # Initialize variable indicating if part has any parents
         self.orphan = False
+        # Initialize variable indicating where-used results are present
         self.report_name = None
 
     def set_report_name(self, report_name):
@@ -40,6 +42,9 @@ class Part(object):
         return self.report_name
 
     def get_report_suffix(self):
+        """If part has a report, see if report has a suffix after the standard
+        name and return that if so.
+        """
         if not self.report_name:
             return None
         elif "SAP_multi_w" in self.report_name:
@@ -61,12 +66,20 @@ class Part(object):
         return self.obs_disp
 
     def get_obs_status(self, silent=False):
-        # If the name of the part is OBS, don't bother w/ parent query.
+        """Return True of False based on if the given part is okay to obsolete.
+        First checks the obs "disposition" ("OBS" prefix in name). If obs_disp
+        is False, method recursively runs on each parent, ending when either a
+        platform is reached (can_obs being True or False based on platforms.py
+        import) or a part has no parents (based on multi-level where-used report
+        or confirmed by user).
+        """
+        # If the part name has OBS prefix, don't bother w/ parent query.
         if self.obs_disp:
             return True
 
         self.can_obs = True
         for Parent_i in self.Parents:
+            # If no parents in set, leaves self.can_obs = True as it should.
             if not silent:
                 print("%s: looking for status of parent %s" % (self.part_num,
                                                                     Parent_i))
@@ -77,10 +90,11 @@ class Part(object):
             if parent_status == False:
                 self.can_obs = False
                 break
-        # If no parents in set, results in self.can_obs = True as it should.
         return self.can_obs
 
     def set_orphan(self):
+        """Set attribute indicating part has no parents.
+        """
         self.orphan = True
 
     def is_orphan(self):
@@ -100,12 +114,12 @@ class Part(object):
 
     def get_parents_above(self, buffer=None):
         """Returns union of all parents above this part in the heirarchy,
-        recursing up the tree
+        recursing up the tree.
         """
-        if buffer==None:
+        if buffer == None:
             buffer = set()
-            # This is required rather than setting the default buffer to set()
-            # in the parameters. Causes unwanted behavior.
+            # This is required rather than assigning set() as the default buffer
+            # in the formal parameter listing. Causes unwanted behavior.
             # https://nikos7am.com/posts/mutable-default-arguments/
         for Part_i in self.get_parents():
             if isinstance(Part_i, Platform):
@@ -155,6 +169,11 @@ class Platform(Part):
 
 
 class PartGroup(object):
+    """Represents a group of parts (Part and/or Platform objects).
+    target_Parts attribute contains set of parts of interest, read from txt file.
+    report_Parts attribute contains set of parts which have reports in import
+    folder.
+    """
     def __init__(self, target_part_str=False):
         self.import_dir = os.path.join(SCRIPT_DIR, "import")
         self.Parts = set()
@@ -162,19 +181,19 @@ class PartGroup(object):
         self.target_Parts = set()
         if target_part_str:
             target_parts = target_part_str.split(",")
-            # Assuming no descriptions given along w/ P/Ns through terminal.
+            # Assumes no descriptions given along w/ P/Ns through terminal.
             for target_pn in target_parts:
                 self.target_Parts.add(Part(target_pn))
         else:
             self.import_target_parts()
 
-        # Use target_Parts as basis for Parts so same objects are used when
-        # importing reports.
+        # Add target parts to overall Parts set.
         self.Parts.update(self.target_Parts)
 
-        # Initialize list of primary parts that reports pertain to.
+        # Initialize list of parts that reports are generated for.
         self.report_Parts = set()
 
+        # Type of report(s) being used to build PartGroup. Set in import method.
         self.report_type = None
 
         print("\nParts:\t      %r" % self.Parts)
@@ -182,8 +201,8 @@ class PartGroup(object):
         print("Target parts: %r" % self.target_Parts)
 
     def import_platforms(self, platform_dict):
-        """Read in platform data from given dictionary (key is PN and value is
-        True/False for can_obs).
+        """Read in platform data from given dictionary (where key is PN and
+        value is True/False for can_obs).
         """
         print("\nImporting platforms...")
         for platform in platform_dict:
@@ -223,6 +242,8 @@ class PartGroup(object):
                                                if isinstance(Part_i, Platform)})
 
     def print_obs_status_trace(self):
+        """Print can-obsolete status for each part in Parts set.
+        """
         print("")
         for PartNum in self.get_parts():
             if isinstance(PartNum, Platform):
@@ -232,6 +253,8 @@ class PartGroup(object):
             print("\t%s: Can OBS? %r\n" % (PartNum, PartNum.get_obs_status()))
 
     def get_target_obs_status(self):
+        """Print each part in target_Parts along with whether it is okay to OBS.
+        """
         print("\nTarget parts OBS status:")
         for TargetPart in self.target_Parts:
             print("\t%s: Can OBS? %r" % (TargetPart,
@@ -280,12 +303,12 @@ class PartGroup(object):
 
     def import_all_reports(self, report_type=None, find_missing=True,
                                            bom_union=False, import_subdir=None):
-        """Read in all (where-used or BOM) reports in import directory.
+        """Read in all (where-used or multi-BOM) reports in import directory.
         Report type should be specified the first time this method is called.
         Subsequent calls assume same report type.
         find_missing should only be specified the first time method is called.
         bom_union used if program is being run with intent to collect the BOMs
-        of multiple parts and return the union of the P/Ns. The target_parts set
+        of multiple parts and return the union of the P/Ns. The target_Parts set
         in this case contains the P/Ns whose BOMs should be union'd.
         """
         if report_type:
@@ -319,7 +342,8 @@ class PartGroup(object):
             assert len(self.target_Parts) >= 1, "No target parts identified."
         elif self.report_type == "SAP_multi_BOM" and not bom_union:
             # Wipe out target_Parts in case they were left in place from
-            # previous use w/ other report type.
+            # previous use w/ other report type. target parts not applicable
+            # when using SAP_multi_BOM report type.
             # Remove from full parts list unless it's a platform
             self.Parts.difference_update(self.target_Parts - self.get_platforms())
             self.target_Parts = set()
@@ -343,7 +367,8 @@ class PartGroup(object):
             self.find_missing_reports()
 
     def import_SAPTC_report(self, import_path, verbose=False):
-        """Read in specific where-used report from TC's SAP plug-in.
+        """Read in a single-level where-used report generated by Teamcenter's
+        SAP plugin. Create Parts objects and link parts based on BOM heirarchy.
         """
         file_name = os.path.basename(import_path)
         # ignore files not matching expected report pattern
@@ -445,7 +470,8 @@ class PartGroup(object):
 
 
     def import_SAP_multi_w_report(self, import_path, verbose=False):
-        """Read in specific multi-level where-used report from SAP.
+        """Read in a multi-level where-used report exported from SAP CS15.
+        Create Parts objects and link parts based on BOM heirarchy.
         """
         file_name = os.path.basename(import_path)
         # ignore files not matching expected report pattern
@@ -603,7 +629,8 @@ class PartGroup(object):
 
 
     def import_SAP_multi_BOM_report(self, import_path, union_bom=False, verbose=False):
-        """Read in specific multi-level where-used report from SAP.
+        """Read in a multi-level BOM exported from SAP CS12.
+        Create Parts objects and link parts based on BOM heirarchy.
         """
         file_name = os.path.basename(import_path)
         # ignore files not matching expected report pattern
@@ -717,26 +744,27 @@ class PartGroup(object):
             # BOMs, find out if this part has a target part above it in the tree.
             if union_bom:
                 for Part_i in self.target_Parts:
-                    # if Part_i in NewPart.get_parents_above(set()):
                     if Part_i in NewPart.get_parents_above():
                         # print("Parents of %s: %r" % (NewPart, NewPart.get_parents()))
                         # print("Parents above %s: %r" % (NewPart, NewPart.get_parents_above(set())))
-                        # input("Found %s above %s" % (Part_i, NewPart))
                         self.union_bom.add(NewPart)
 
             LastPart = NewPart
             previous_level = current_level
 
         print("...done")
-        print("\nParts:\t      %r" % self.Parts)
-        # print("\nPart count:\t%d" % len(self.Parts))
+        # print("\nParts:\t      %r" % self.Parts)
+        print("\nPart count:\t%d" % len(self.Parts))
         print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
         # print("union BOM: %r" % self.union_bom)
 
 
     def find_missing_reports(self):
-
+        """Used when importing individual where-used reports to find what reports are
+        needed but not contained in import folder.
+        Runs recursively after each new report is added.
+        """
         while True:
             # Every part should belong to one of these groups: parts w/ a report,
             # platforms, parts w/ "OBS-" prefix, or orphan parts (empty where-used).
@@ -749,8 +777,6 @@ class PartGroup(object):
                             in self.Parts.difference(platform_parts, obs_parts)
                                                         if Part_i.is_orphan()})
 
-            # print("\nParts (len %d):\t      %r" % (len(self.Parts), self.Parts))
-            # print("ID'd parts (len %d): %r" % (len(union_set), union_set))
             union_set = self.report_Parts.union(platform_parts, obs_parts,
                                                                   orphan_parts)
             tbd_parts = self.Parts.difference(union_set)
@@ -775,8 +801,8 @@ class PartGroup(object):
 
     def export_parts_set(self, pn_set=None, omit_platforms=False):
         """Output CSV file with where-used results.
-        Default is to export all parts in object. Can specify which parts set
-        to export.
+        Default is to export all parts in object. Can use pn_set to pass in the
+        specific parts set desired.
         """
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
         export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s_parts_set.csv"
@@ -846,6 +872,11 @@ class PartGroup(object):
 
 
 class TreeGraph(object):
+    """Object that represents a tree graph for a set of parts, showing BOM
+    structure and indicating obsolete status with color.
+    Graph doesn't generate correctly if run on PartGroup.target_Parts
+    aren't "leaves" of the tree (base parts; can't be mods and assys).
+    """
     def __init__(self, PartsGr, target_group_only=False, printout=False,
                                                              include_desc=True):
         # https://graphviz.org/doc/info/attrs.html
@@ -919,7 +950,6 @@ class TreeGraph(object):
                 self.graph.add_edge(pydot.Edge("X%d" % inc, Part_i.__str__(),
                                                             color="crimson"))
                 self.terminal_sub.add_node(x_node)
-                # print("Added X%d to terminal_sub" % inc)
                 inc += 1
 
             for Parent_i in Part_i.get_parents():
@@ -946,7 +976,6 @@ class TreeGraph(object):
 
         if isinstance(Part_obj, Platform):
             font_color = "green4"
-            # print("1. %s is a platform" % Part_obj.get_pn())
         else:
             font_color = "black"
 
@@ -965,10 +994,8 @@ class TreeGraph(object):
 
         if isinstance(Part_obj, Platform):
             self.terminal_sub.add_node(Part_obj_node)
-            # print("Added %s to terminal_sub" % Part_obj.get_pn())
         elif Part_obj in self.PartsGr.get_target_parts():
             self.target_sub.add_node(Part_obj_node)
-            # print("Added %s to target_sub" % Part_obj.get_pn())
 
     def export_graph(self):
         export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s_tree.png"
