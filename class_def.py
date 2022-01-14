@@ -247,10 +247,17 @@ class PartGroup(object):
                         (len(missing_target_parts), len(self.target_Parts)))
             for pn in missing_target_parts:
                 print("\t%s" % pn)
-            print("")
-            raise Exception("%d of %d target parts not found in report(s):" %
-                        (len(missing_target_parts), len(self.target_Parts)))
+            print("\n%d of %d target parts not found in report(s). Continue "
+                "anyway (missing target parts will be omitted from export)?"
+                         % (len(missing_target_parts), len(self.target_Parts)))
+            answer = input("> ")
 
+            if not answer.lower() == "y":
+                quit()
+        else:
+            missing_target_parts = set()
+
+        self.target_Parts.difference_update(missing_target_parts)
         # Delay adding target parts to self.Parts so above check can be conducted.
         self.Parts.update(self.target_Parts)
 
@@ -342,8 +349,7 @@ class PartGroup(object):
             # Add target parts to overall Parts set.
             self.Parts.update(self.target_Parts)
 
-        if len(self.target_Parts) == 0:
-            print("No target parts found in %s" % target_filename)
+        assert len(self.target_Parts) != 0, "No target parts found in %s" % target_filename
         print("...done")
 
     def import_all_reports(self, report_type=None, find_missing=True,
@@ -400,6 +406,10 @@ class PartGroup(object):
             elif self.report_type == "SAP_multi_BOM":
                 self.import_SAP_multi_BOM_report(import_path)
                 find_missing = False
+
+        if not self.report_Parts:
+            raise Exception("No reports of type '%s' found in %s\n" %
+                                                (self.report_type, import_dir))
 
         if find_missing:
             self.find_missing_reports()
@@ -828,8 +838,8 @@ class PartGroup(object):
 
 
     def export_parts_set(self, pn_set=None, omit_platforms=False):
-        """Output CSV file with where-used results.
-        Default is to export all parts in object. Can use pn_set to pass in the
+        """Output CSV file with part numbers and descriptions.
+        Default is to export all parts in group. Can use pn_set to pass in the
         specific parts set desired.
         """
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
