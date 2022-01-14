@@ -871,10 +871,12 @@ class PartGroup(object):
             print("\nWriting combined data to %s..." % os.path.basename(export_path))
             for part in parts_list:
                 if platform_app:
-                    platform_list = list(map(str, part.get_platform_refs()))
+                    platform_set = part.get_platform_refs()
+                    platform_list = list(map(str, platform_set))
                     platform_list.sort()
+                    obs_det = False not in [platform.get_obs_status() for platform in platform_set]
                     output_file_csv.writerow([part.get_pn(), part.get_name()] +
-                                         ["-", "Platforms: "] + platform_list)
+                                 ["-", obs_det, "Platforms: "] + platform_list)
                 else:
                     output_file_csv.writerow([part.get_pn(), part.get_name()])
             print("...done")
@@ -1061,19 +1063,3 @@ class TreeGraph(object):
         print("\nWriting graph to %s..." % os.path.basename(export_path))
         self.graph.write_png(export_path)
         print("...done")
-
-
-# testing
-# Pltfm1 = Platform("658237", True)
-# # print(Pltfm1, ": ", Pltfm1.get_obs_status())
-# Pltfm2 = Platform("658244", False)
-# Pltfm3 = Platform("10016534", True)
-#
-# Part3 = Part("10013547", Parents=set({Pltfm1, Pltfm3}))
-# print(Part3, ": ", Part3.get_obs_status())
-#
-# Part4 = Part("654981", Parents=set({Pltfm2}))
-# print(Part4, ": ", Part4.get_obs_status())
-#
-# Part3.add_parent(Part4)
-# print(Part3, ": ", Part3.get_obs_status())
