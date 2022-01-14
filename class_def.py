@@ -129,6 +129,18 @@ class Part(object):
 
         return buffer
 
+    def get_platform_refs(self):
+        """Return set of platforms where part is used.
+        """
+        return set({Part_i for Part_i in self.get_parents_above()
+                                               if isinstance(Part_i, Platform)})
+        # platform_set = set({Part_i for Part_i in self.get_parents_above()
+        #                                        if isinstance(Part_i, Platform)})
+        # if platform_set:
+        #     return platform_set
+        # else:
+        #     return None
+
     def get_pn(self):
         return self.part_num
 
@@ -837,7 +849,8 @@ class PartGroup(object):
                 break
 
 
-    def export_parts_set(self, pn_set=None, omit_platforms=False):
+    def export_parts_set(self, pn_set=None, omit_platforms=False,
+                                                            platform_app=False):
         """Output CSV file with part numbers and descriptions.
         Default is to export all parts in group. Can use pn_set to pass in the
         specific parts set desired.
@@ -857,7 +870,13 @@ class PartGroup(object):
 
             print("\nWriting combined data to %s..." % os.path.basename(export_path))
             for part in parts_list:
-                output_file_csv.writerow([part.get_pn(), part.get_name()])
+                if platform_app:
+                    platform_list = list(map(str, part.get_platform_refs()))
+                    platform_list.sort()
+                    output_file_csv.writerow([part.get_pn(), part.get_name()] +
+                                         ["-", "Platforms: "] + platform_list)
+                else:
+                    output_file_csv.writerow([part.get_pn(), part.get_name()])
             print("...done")
 
 

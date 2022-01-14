@@ -14,8 +14,8 @@ parser = argparse.ArgumentParser(description="Program to automate recursive "
 parser.add_argument("-v", "--verbose", help="Include additional output for "
                                             "diagnosis.", action="store_true")
 parser.add_argument("-m", "--mode", help="Specify which mode to run program in "
-                    "('single', 'multi', 'union'). 'union' type uses SAP "
-                                "multi-level BOM(s)", type=str, default=None)
+                    "('single', 'multi', 'union', 'platform'). 'union' and "
+        "'platform' types use SAP multi-level BOM(s)", type=str, default=None)
 parser.add_argument("-gp", "--printout", help="Specify that graph should be "
                 "created in printout mode (sparse color). "
                 "Only valid in 'single' or 'multi' modes.", action="store_true")
@@ -70,3 +70,19 @@ elif args.mode.lower() == "union":
     #         AllParts.union_bom.discard(Part_i)
 
     AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)
+    # Export union bom w/ platform applications:
+    # AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
+    #                                     omit_platforms=True, platform_app=True)
+
+elif args.mode.lower() == "platform":
+    """Reads in SAP platform multi-level BOM(s), reads in target parts.
+    Exports list of target parts along with which platforms each is used in.
+    """
+    AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    AllParts.import_target_parts()
+
+    AllParts.export_parts_set(pn_set=AllParts.get_target_parts(),
+                                        omit_platforms=True, platform_app=True)
+    # Export union bom w/ platform applications:
+    # AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
+    #                                     omit_platforms=True, platform_app=True)
