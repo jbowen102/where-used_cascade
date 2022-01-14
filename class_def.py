@@ -916,13 +916,13 @@ class TreeGraph(object):
     aren't "leaves" of the tree (base parts; can't be mods and assys).
     """
     def __init__(self, PartsGr, target_group_only=False, printout=False,
-                                                             include_desc=True):
+                                                         exclude_desc=False):
         # https://graphviz.org/doc/info/attrs.html
         # https://graphviz.org/doc/info/shapes.html
         # https://graphviz.org/doc/info/colors.html
         self.PartsGr = PartsGr
         self.target_group_only = target_group_only
-        self.include_desc = include_desc
+        self.exclude_desc = exclude_desc
 
         if printout:
             self.back_color = "white"
@@ -1017,10 +1017,10 @@ class TreeGraph(object):
         else:
             font_color = "black"
 
-        if self.include_desc:
-            label_text = "%s\n%s" % (Part_obj.get_pn(), Part_obj.get_name())
-        else:
+        if self.exclude_desc:
             label_text = "%s" % Part_obj.get_pn()
+        else:
+            label_text = "%s\n%s" % (Part_obj.get_pn(), Part_obj.get_name())
 
         Part_obj_node = pydot.Node(Part_obj.__str__(), shape="box3d",
                                   style="filled", fontcolor=font_color,
