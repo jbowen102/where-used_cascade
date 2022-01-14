@@ -31,20 +31,33 @@ AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
 
 if args.mode.lower() == "single":
+    """Reads in TC-SAP single-level where-used report(s), builds structure from
+    target parts upward, prompting user for more single-level reports (or orphan
+    determination) as needed.
+    Exports graph showing structure of BOM along with can-obsolete coloring.
+    """
     AllParts.import_all_reports(report_type="SAPTC")
     # AllParts.get_target_obs_status()
     # AllParts.print_obs_status_trace()
     TreeViz = class_def.TreeGraph(AllParts, target_group_only=True,
                             printout=args.printout, exclude_desc=args.compact)
     TreeViz.export_graph()
+
 elif args.mode.lower() == "multi":
+    """Reads in SAP multi-level where-used report(s), ignores target parts.
+    Exports graph showing structure of BOM along with can-obsolete coloring.
+    """
     AllParts.import_all_reports(report_type="SAP_multi_w")
     # AllParts.get_target_obs_status()
     # AllParts.print_obs_status_trace()
     TreeViz = class_def.TreeGraph(AllParts, target_group_only=True,
                             printout=args.printout, exclude_desc=args.compact)
     TreeViz.export_graph()
+
 elif args.mode.lower() == "union":
+    """Reads in SAP multi-level BOM(s), reads in target parts.
+    Exports list of target parts and every part used in any level below the target parts.
+    """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
 
     # hack to eliminate already-seen parts for successive large runs
