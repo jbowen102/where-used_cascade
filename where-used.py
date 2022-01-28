@@ -26,6 +26,7 @@ parser.add_argument("-gc", "--compact", help="Specify that graph should be "
 args = parser.parse_args()
 
 assert args.mode, "Need to pass mode argument."
+assert args.mode in ["single", "multi", "union", "platform", "union_loop"]
 
 AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
