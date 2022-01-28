@@ -86,3 +86,21 @@ elif args.mode.lower() == "platform":
     # Export union bom w/ platform applications:
     # AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
     #                                     omit_platforms=True, platform_app=True)
+
+elif args.mode.lower() == "union_loop":
+    """Reads in SAP multi-level BOM(s).
+    Repeatedly prompts user for individual target part to create union BOM for.
+    Exports list of target part and every part used in any level below the target part.
+    """
+    AllParts.import_all_reports(report_type="SAP_multi_BOM")
+
+    while True:
+        print("\nEnter P/N")
+        pn = input("> ")
+        if not AllParts.get_part(pn):
+            print("P/N not found in set.")
+            continue
+        else:
+            # Manually edit target_Parts so get_union_bom() ignores txt file.
+            AllParts.target_Parts = set({AllParts.get_part(pn)})
+            AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)
