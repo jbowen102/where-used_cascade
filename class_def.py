@@ -260,7 +260,7 @@ class PartGroup(object):
             for pn in missing_target_parts:
                 print("\t%s" % pn)
             print("\n%d of %d target parts not found in report(s). Continue "
-                "anyway (missing target parts will be omitted from export)?"
+                "anyway (missing target parts will be omitted from export)? [Y/N]"
                          % (len(missing_target_parts), len(self.target_Parts)))
             answer = input("> ")
 
@@ -422,6 +422,12 @@ class PartGroup(object):
         if not self.report_Parts:
             raise Exception("No reports of type '%s' found in %s\n" %
                                                 (self.report_type, import_dir))
+
+        if self.report_type == "SAP_multi_w":
+            missing_target_parts = self.target_Parts - self.target_Parts.intersection(self.report_Parts)
+
+            assert self.target_Parts.issubset(self.report_Parts), ("Missing "
+                "report(s) for these target parts: %r" % missing_target_parts)
 
         if find_missing:
             self.find_missing_reports()
