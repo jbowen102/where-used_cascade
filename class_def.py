@@ -330,7 +330,10 @@ class PartGroup(object):
                     # Skip blank lines
                     # print("\tLine %d empty or commented out" % i)
                     continue
+                target_part_line = target_part_line.lstrip()
+                target_part_line = target_part_line.rstrip()
                 target_pn = target_part_line.split("-")[0]
+
                 assert len(target_pn) >= 6, ("Encountered %s in file %s. "
                                             "Expected a P/N of length >= 6."
                                           % (target_part_line, target_filename))
