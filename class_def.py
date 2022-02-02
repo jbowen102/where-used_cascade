@@ -112,10 +112,24 @@ class Part(object):
     def get_parents(self):
         return self.Parents
 
-    def get_parents_above(self, buffer=None):
+    def get_parents_above(self, buffer=None, assy_only=False):
         """Returns union of all parents above this part in the heirarchy,
         recursing up the tree.
         """
+        if assy_only:
+            parents_set = self.get_parents_above(assy_only=False)
+
+            no_platforms = parents_set - self.get_platform_refs()
+
+            return set({Part_j for Part_j in no_platforms
+                                if not Part_j.get_name().endswith("MOD")
+                               and not Part_j.get_name().endswith("PLATFORM")
+                               and not Part_j.get_pn().endswith("M01")
+                               and not Part_j.get_pn().startswith("U20")
+                               and not "INSTALLATION" in Part_j.get_name()
+                               and not "INSTL" in Part_j.get_name()
+                               and not "INST'L" in Part_j.get_name()    })
+
         if buffer == None:
             buffer = set()
             # This is required rather than assigning set() as the default buffer
@@ -134,12 +148,6 @@ class Part(object):
         """
         return set({Part_i for Part_i in self.get_parents_above()
                                                if isinstance(Part_i, Platform)})
-        # platform_set = set({Part_i for Part_i in self.get_parents_above()
-        #                                        if isinstance(Part_i, Platform)})
-        # if platform_set:
-        #     return platform_set
-        # else:
-        #     return None
 
     def get_pn(self):
         return self.part_num
@@ -462,7 +470,7 @@ class PartGroup(object):
                         "Check formatting in %s." % file_name)
 
         # Rudimentary data validation
-        assert len(part_num) >= 6, ("Found less than 6 digits "
+        assert len(part_num) >= 5, ("Found less than 5 digits "
                         "where part number should be in cell C2. "
                         "Check formatting in %s." % file_name)
         assert len(part_desc) > 0, ("Found empty cell where "
@@ -503,7 +511,7 @@ class PartGroup(object):
             parent_desc = import_data.iloc[idx, 4]
 
             # Rudimentary data validation
-            assert len(parent_num) >= 6, ("Found less than 6 digits "
+            assert len(parent_num) >= 5, ("Found less than 5 digits "
                             "where part number should be in D%d. "
                             "Check formatting in %s." % (idx+2, file_name))
             assert len(parent_desc) > 0, ("Found empty cell where "
@@ -556,7 +564,7 @@ class PartGroup(object):
         part_num = os.path.splitext(file_name)[0].split(
                                                 "SAP_multi_w_")[1].split("_")[0]
         # Allowed to have additional text after P/N as long as preceded by "_".
-        assert len(part_num) >= 6, ("Found less than 6 digits "
+        assert len(part_num) >= 5, ("Found less than 5 digits "
                     "where part number should be in filename (after "
                     "'SAP_multi_w_'). Check formatting of %s name." % file_name)
 
@@ -622,7 +630,7 @@ class PartGroup(object):
                     print("level: %d/%d" % (this_level, max_level))
 
                 # Rudimentary data validation
-                assert len(parent_num) >= 6, ("Found less than 6 digits where "
+                assert len(parent_num) >= 5, ("Found less than 5 digits where "
                                 "part number should be in cell E%d of report. "
                                    "Check formatting in %s." % (i+2, file_name))
                 assert len(parent_desc) > 0, ("Found empty cell where "
@@ -715,7 +723,7 @@ class PartGroup(object):
         part_num = os.path.splitext(file_name)[0].split(
                                             "SAP_multi_BOM_")[1].split("_")[0]
         # Allowed to have additional text after P/N as long as preceded by "_".
-        assert len(part_num) >= 6, ("Found less than 6 digits "
+        assert len(part_num) >= 5, ("Found less than 5 digits "
                   "where part number should be in filename (after "
                   "'SAP_multi_BOM_'). Check formatting of %s name." % file_name)
 
@@ -768,7 +776,7 @@ class PartGroup(object):
                 print("level: %d" % current_level)
 
             # Rudimentary data validation
-            assert len(part_num) >= 6, ("Found less than 6 digits where "
+            assert len(part_num) >= 5, ("Found less than 5 digits where "
                             "part number should be in cell D%d of report. "
                        "Check formatting in %s." % (i+2, file_name))
             assert len(part_desc) > 0, ("Found empty cell where "

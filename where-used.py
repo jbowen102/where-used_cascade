@@ -26,7 +26,7 @@ parser.add_argument("-gc", "--compact", help="Specify that graph should be "
 args = parser.parse_args()
 
 assert args.mode, "Need to pass mode argument."
-assert args.mode in ["single", "multi", "union", "platform", "union_loop"]
+assert args.mode in ["single", "multi", "union", "platform", "assy_list", "union_loop"]
 
 AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
@@ -45,8 +45,8 @@ if args.mode.lower() == "single":
     TreeViz.export_graph()
 
 elif args.mode.lower() == "multi":
-    """Reads in SAP multi-level where-used report(s), ignores target parts.
-    Exports graph showing structure of BOM along with can-obsolete coloring.
+    """Reads in SAP multi-level where-used report(s), reads in target parts.
+    Exports graph showing where-used heirarchy along with can-obsolete coloring.
     """
     AllParts.import_all_reports(report_type="SAP_multi_w")
     # AllParts.get_target_obs_status()
@@ -60,15 +60,6 @@ elif args.mode.lower() == "union":
     Exports list of target parts and every part used in any level below the target parts.
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
-
-    # hack to eliminate already-seen parts for successive large runs
-    # AllParts2 = class_def.PartGroup(target_part_str=args.target_parts)
-    # AllParts2.import_platforms(platform_dict)
-    # AllParts2.import_all_reports(report_type="SAP_multi_BOM",
-    #                                             import_subdir="previous_multi-BOMs")
-    # for Part_i in AllParts.get_parts():
-    #     if AllParts2.get_part(Part_i.get_pn()):
-    #         AllParts.union_bom.discard(Part_i)
 
     AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)
     # Export union bom w/ platform applications:
@@ -87,6 +78,21 @@ elif args.mode.lower() == "platform":
     # Export union bom w/ platform applications:
     # AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
     #                                     omit_platforms=True, platform_app=True)
+
+elif args.mode.lower() == "assy_list":
+    """Reads in SAP multi-level where-used report(s), reads in target parts.
+    Returns list of P/Ns in where-used heirarchy that aren't platforms or mods.
+    """
+    AllParts.import_all_reports(report_type="SAP_multi_w")
+
+    print("")
+    for TargetPart in AllParts.get_target_parts():
+        assy_set = TargetPart.get_parents_above(assy_only=True)
+        # assy_set = TargetPart.get_parents_above()
+        print("%s: " % TargetPart)
+        for Part_i in assy_set:
+            print("\t%s - %s" % (Part_i, Part_i.get_name()))
+
 
 elif args.mode.lower() == "union_loop":
     """Reads in SAP multi-level BOM(s).
