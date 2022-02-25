@@ -26,7 +26,8 @@ parser.add_argument("-gc", "--compact", help="Specify that graph should be "
 args = parser.parse_args()
 
 assert args.mode, "Need to pass mode argument."
-assert args.mode in ["single", "multi", "union", "platform", "assy_list", "union_loop"]
+assert args.mode in ["single", "multi", "union", "platform", "assy_list",
+                                                        "union_loop", "bom_vis"]
 
 AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
@@ -46,7 +47,7 @@ if args.mode.lower() == "single":
 
 elif args.mode.lower() == "multi":
     """Reads in SAP multi-level where-used report(s), reads in target parts.
-    Exports graph showing where-used heirarchy along with can-obsolete coloring.
+    Exports graph showing where-used hierarchy along with can-obsolete coloring.
     """
     AllParts.import_all_reports(report_type="SAP_multi_w")
     # AllParts.get_target_obs_status()
@@ -60,6 +61,16 @@ elif args.mode.lower() == "union":
     Exports list of target parts and every part used in any level below the target parts.
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
+
+    #### TEMP - used to see if mods/parts being used on new platforms include
+    ####        any parts I'm obsoleting
+    # NewParts = AllParts.get_union_bom() # new stuff in target_parts.txt
+    # AllParts.target_Parts = set()
+    # input("\n\nReplace target parts") # put parts planning to obs in target_parts.txt
+    # AllParts.import_target_parts(parts_update=False)
+    # ObsParts = AllParts.get_target_parts()
+    # print(NewParts.intersection(ObsParts))
+    #### TEMP
 
     AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)
     # Export union bom w/ platform applications:
@@ -81,7 +92,7 @@ elif args.mode.lower() == "platform":
 
 elif args.mode.lower() == "assy_list":
     """Reads in SAP multi-level where-used report(s), reads in target parts.
-    Returns list of P/Ns in where-used heirarchy that aren't platforms or mods.
+    Returns list of P/Ns in where-used hierarchy that aren't platforms or mods.
     """
     AllParts.import_all_reports(report_type="SAP_multi_w")
 
@@ -111,3 +122,16 @@ elif args.mode.lower() == "union_loop":
             # Manually edit target_Parts so get_union_bom() ignores txt file.
             AllParts.target_Parts = set({AllParts.get_part(pn)})
             AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)
+
+elif args.mode.lower() == "bom_vis":
+    """Reads in SAP multi-level BOM(s), reads in target parts.
+    Exports graph showing BOM hierarchy along with can-obsolete coloring.
+    Can't have any multi-level BOMs in the import folder that you don't want on
+    the graph.
+    """
+    AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    # AllParts.import_target_parts()
+
+    TreeViz = class_def.TreeGraph(AllParts, target_group_only=False,
+                            printout=args.printout, exclude_desc=args.compact)
+    TreeViz.export_graph()
