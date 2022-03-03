@@ -26,8 +26,8 @@ parser.add_argument("-gc", "--compact", help="Specify that graph should be "
 args = parser.parse_args()
 
 assert args.mode, "Need to pass mode argument."
-assert args.mode in ["single", "multi", "union", "platform", "assy_list",
-                                                        "union_loop", "bom_vis"]
+assert args.mode in ["single", "multi", "union", "platform", "platform_union",
+                                        "assy_list", "union_loop", "bom_vis"]
 
 AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
@@ -58,7 +58,8 @@ elif args.mode.lower() == "multi":
 
 elif args.mode.lower() == "union":
     """Reads in SAP multi-level BOM(s), reads in target parts.
-    Exports list of target parts and every part used in any level below the target parts.
+    Exports list of target parts and every part used in any level below the
+    target parts.
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
 
@@ -73,9 +74,6 @@ elif args.mode.lower() == "union":
     #### TEMP
 
     AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)
-    # Export union bom w/ platform applications:
-    # AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
-    #                                     omit_platforms=True, platform_app=True)
 
 elif args.mode.lower() == "platform":
     """Reads in SAP platform multi-level BOM(s), reads in target parts.
@@ -86,9 +84,18 @@ elif args.mode.lower() == "platform":
 
     AllParts.export_parts_set(pn_set=AllParts.get_target_parts(),
                                         omit_platforms=True, platform_app=True)
+
+elif args.mode.lower() == "platform_union":
+    """Reads in SAP platform multi-level BOM(s), reads in target parts.
+    Exports list of target parts and every part used in any level below the
+    target parts, along with which platforms each is used in.
+    """
+    AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    AllParts.import_target_parts()
+
     # Export union bom w/ platform applications:
-    # AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
-    #                                     omit_platforms=True, platform_app=True)
+    AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
+                                        omit_platforms=True, platform_app=True)
 
 elif args.mode.lower() == "assy_list":
     """Reads in SAP multi-level where-used report(s), reads in target parts.
@@ -108,7 +115,8 @@ elif args.mode.lower() == "assy_list":
 elif args.mode.lower() == "union_loop":
     """Reads in SAP multi-level BOM(s).
     Repeatedly prompts user for individual target part to create union BOM for.
-    Exports list of target part and every part used in any level below the target part.
+    Exports list of target part and every part used in any level below the
+    target part.
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
 
