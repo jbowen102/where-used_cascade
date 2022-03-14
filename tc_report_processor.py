@@ -33,17 +33,16 @@ def is_prod_rev(rev):
 
 def get_latest_rev(rev_list):
     """Takes a list of revisions and returns latest rev.
+    Example list: ["-", "01", "02", "A"]         - pick "A"
+    Example list: ["-", "01", "02", "A", "A01"]  - pick "A"
+    Example list: ["-", "01", "02", "A", "03"]   - pick "A"
+    Example list: ["-", "01", "02", "03"]        - pick "-"
+    Example list: ["-", "01", "02", "03", "A01"] - pick "-"
     """
     #   If latest sorted rev is a letter (not a letter+num), that's latest rev. Want to do any check for release status here?
     #   Handle if it's two letters.
     #   If latest sorted rev is a letter+num, decrement and continue looking for letter (recurse).
     #   If latest sorted rev is a number, check for dash rev (doesn't sort right)
-
-    # Example list: ["-", "01", "02", "A"] - pick "A"
-    # Example list: ["-", "01", "02", "A", "A01"] - pick "A"
-    # Example list: ["-", "01", "02", "A", "03"] - pick "A"
-    # Example list: ["-", "01", "02", "03"] - pick "-"
-    # Example list: ["-", "01", "02", "03", "A01"] - pick "-"
 
     rev = rev_list[-1]
     if is_prod_rev(rev):
@@ -87,6 +86,36 @@ def reformat_TC_single_w_report(import_path, verbose=False):
     # https://datatofish.com/sort-pandas-dataframe/
     # Is this any different?
     # import_df.sort_values(by=["Object"], inplace=True)
-    return import_df
+
+    # build filters to move study files, exp revs, etc. to another
+    # dataframe that will be appended to end of export
+    # Remove items where P/N starts w/ letter.
+    extra_filter = (    (import_df["Current ID"].str.upper().str.contains("STUDY"))
+                      | (import_df["Name"].str.upper().str.startswith("CHART"))  )
+    # https://stackoverflow.com/a/54030143
+
+    extra_df = pd.DataFrame(columns=import_df.columns)
+
+    # Move extranneous rows to extra_df.
+    extra_df = extra_df.append(import_df[extra_filter])
+    # https://stackoverflow.com/questions/15819050/pandas-dataframe-concat-vs-append
+    import_df.drop(import_df[extra_filter].index, inplace=True)
+
+    # isolate latest rev of each thing. Not necessarily thing that sorts last.
+    #   For each line, ID the P/N. Select all rows w/ this P/N.
+    for id in import_df["Current ID"]:
+        id_rows = import_df[import_df["Current ID"]==id]
+        rev_list = list(id_rows["Current Revision"])
+        latest_rev = get_latest_rev(rev_list)
+
+        # Move all but the latest rev to extra_df
+        old_revs = id_rows[id_rows["Current Revision"]!=latest_rev]
+        extra_df = extra_df.append(old_revs)
+        # Make sure no error if no other revs exist.
+        import_df.drop(old_revs.index, inplace=True)
+
+    return [import_df, extra_df] # using for testing
+
+
 
     #######################
