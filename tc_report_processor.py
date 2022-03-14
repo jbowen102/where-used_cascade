@@ -60,6 +60,18 @@ def get_latest_rev(rev_list):
             # If no prod rev found, return this rev as latest.
             return rev
 
+def extract_revs(object_str):
+    """Read in object list from export and extract list of revs.
+    """
+    object_list = object_str.split(", ")
+    rev_list = []
+    for object in object_list:
+        if "---" in object:
+            rev = "-"
+        else:
+            rev = object.split("-")[1]
+        rev_list.append(rev)
+    return rev_list
 
 def reformat_TC_single_w_report(import_path, verbose=False):
     """Read in a single-level where-used report exported from Teamcenter.
@@ -118,4 +130,17 @@ def reformat_TC_single_w_report(import_path, verbose=False):
 
 
 
-    #######################
+#######################
+
+# # Reference
+# import_df.mask(~extra_filter)
+# # This returns df w/ NaNs other than things ID'd by filter.
+# import_df[extra_filter]
+# # This returns df w/ only things ID'd by filter.
+# import_df.index[import_df["Current ID"].str.upper().str.contains("STUDY")]
+# # This returns indices of rows in import_df where "STUDY" items are
+# import_df.drop(import_df.index[import_df["Current ID"].str.upper().str.contains("STUDY")])
+# import_df.drop(import_df[extra_filter].index)
+# # This returns version of import_df w/ "STUDY" items removed
+# import_df[import_df["Current ID"].str.upper().str.contains("STUDY")]
+# # This returns "STUDY" rows of import_df.
