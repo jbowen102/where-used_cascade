@@ -97,7 +97,7 @@ def import_TC_single_w_report(import_path, verbose=False):
     if verbose:
         print(import_df.loc[:, ["Current ID", "Current Revision", "Name"]])
 
-    assert (import_df["Current ID"][import_df["Level"]==0] == report_pn, "Report "
+    assert (import_df[import_df["Level"] == 0]["Current ID"].values[0] == report_pn,
             "P/N in report name doesn't match level-0 result in report table.")
     print("...done\n")
     return import_df
@@ -146,7 +146,7 @@ def reformat_TC_single_w_report(report_df, verbose=False):
 
     # Combine core and extra rows w/ 4 blank rows in between.
     buffer_df = pd.DataFrame(np.nan, index=range(0, 4), columns=extra_df.columns)
-    export_df = core_df.append(buffer_df.append(extra_df))
+    export_df = core_df.append(buffer_df.append(extra_df, ignore_index=True), ignore_index=True)
 
     return export_df
 
@@ -156,26 +156,15 @@ def export_report(export_df, report_pn):
     """
     timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
     export_path = os.path.join(SCRIPT_DIR, "export",
-                    "%s_%s_processed_TC_report.csv" % (timestamp, report_pn))
+                    "%s_%s_processed_TC_report.xlsx" % (timestamp, report_pn))
 
-    # Replace any NaNs with blanks
-    export_df.fillna("", inplace=True)
-    # https://stackoverflow.com/questions/26837998/pandas-replace-nan-with-blank-empty-string
+    print("Writing combined data to %s..." % os.path.basename(export_path))
+    # Reorder and select columns
+    export_df.to_excel(export_path, index=False, freeze_panes=(1,1),
+                            columns=["Current ID", "Current Revision", "Name"])
+    # Can col width be set?
 
-    # Convert to list of lists for easier writing out
-    export_array = export_df.values.tolist()
-    # https://stackoverflow.com/questions/28006793/pandas-dataframe-to-list-of-lists
-    # Add header row to array
-    header_row = export_df.columns.tolist()
-    export_array.insert(0, header_row)
-
-    # Create new CSV file and write out.
-    with open(export_path, 'w+') as output_file:
-        output_file_csv = csv.writer(output_file, dialect="excel")
-
-        print("Writing combined data to %s..." % os.path.basename(export_path))
-        output_file_csv.writerows(export_array)
-        print("...done")
+    print("...done")
 
 
 #######################
