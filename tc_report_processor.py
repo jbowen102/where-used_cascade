@@ -2,9 +2,10 @@ print("Importing modules...")
 import os
 import math
 from datetime import datetime
+import csv
 
 import pandas as pd
-# import numpy as np
+import numpy as np
 print("...done\n")
 
 # dir path where this script is stored
@@ -116,8 +117,8 @@ def reformat_TC_single_w_report(report_df, verbose=False):
     # Is this any different?
     # core_df.sort_values(by=["Object"], inplace=True)
 
-    # build filters to move study files, exp revs, etc. to another
-    # dataframe that will be appended to end of export
+    # Build filters to move study files, exp revs, etc. to another dataframe
+    # that will be appended to end of export.
     # Remove items where P/N starts w/ letter.
     extra_filter = ((core_df["Current ID"].str.upper().str.contains("STUDY"))
                   | (core_df["Name"].str.upper().str.startswith("CHART"))    )
@@ -143,10 +144,45 @@ def reformat_TC_single_w_report(report_df, verbose=False):
         # Make sure no error if no other revs exist.
         core_df.drop(old_revs.index, inplace=True)
 
-    return [core_df, extra_df] # using for testing
+    # Combine core and extra rows w/ 4 blank rows in between.
+    buffer_df = pd.DataFrame(np.nan, index=range(0, 4), columns=extra_df.columns)
+    export_df = core_df.append(buffer_df.append(extra_df))
+
+    return export_df
 
 
+def export_report(export_df, report_pn):
+    """Output CSV file with reordered rows from original report.
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
+    export_path = os.path.join(SCRIPT_DIR, "export",
+                    "%s_%s_processed_TC_report.csv" % (timestamp, report_pn))
 
+    # Replace any NaNs with blanks
+    export_df.fillna("", inplace=True)
+    # https://stackoverflow.com/questions/26837998/pandas-replace-nan-with-blank-empty-string
+
+    # Convert to list of lists for easier writing out
+    export_array = export_df.values.tolist()
+    # https://stackoverflow.com/questions/28006793/pandas-dataframe-to-list-of-lists
+    # Add header row to array
+    header_row = export_df.columns.tolist()
+    export_array.insert(0, header_row)
+
+    # Create new CSV file and write out.
+    with open(export_path, 'w+') as output_file:
+        output_file_csv = csv.writer(output_file, dialect="excel")
+
+        print("Writing combined data to %s..." % os.path.basename(export_path))
+        output_file_csv.writerows(export_array)
+        print("...done")
+
+
+#######################
+import_path = "./reference/2022-03-14_630034--_TC_where-used.html"
+report_df = import_TC_single_w_report(import_path)
+output_df = reformat_TC_single_w_report(report_df)
+export_report(output_df, "630034")
 
 #######################
 
