@@ -73,50 +73,67 @@ def extract_revs(object_str):
         rev_list.append(rev)
     return rev_list
 
-def reformat_TC_single_w_report(import_path, verbose=False):
+
+def import_TC_single_w_report(import_path, verbose=False):
     """Read in a single-level where-used report exported from Teamcenter.
-    Reformat and export after separating out superfluous results.
+    Returns dataframe with table data.
     """
     file_path = os.path.realpath(import_path)
     assert os.path.exists(file_path), "File path not found."
-
     file_name = os.path.basename(file_path)
-    print("\nReading data from %s" % file_name)
+
+    # Report name format ex.:
+    #   "2022-03-10_637381-GEOREP1--_TC_where-used.html"
+    #   "2022-02-02_614575-A_TC_where-used.html"
+    report_date = file_name.split("_")[0]
+    report_pn = file_name.split("_")[1][:-2] # remove rev and dash from end.
+
+    print("Reading data from %s" % file_name)
     import_dfs = pd.read_html(file_path)
-    print("...done")
     # Returns list of dfs. List should only have one df.
     assert len(import_dfs) == 1, "Irregular HTML table format found."
     import_df = import_dfs[0]
     if verbose:
         print(import_df.loc[:, ["Current ID", "Current Revision", "Name"]])
-    # Get rid of report part from table
-    import_df.drop(import_df[import_df["Level"]==0].index, inplace=True)
+
+    assert (import_df["Current ID"][import_df["Level"]==0] == report_pn, "Report "
+            "P/N in report name doesn't match level-0 result in report table.")
+    print("...done\n")
+    return import_df
+
+
+def reformat_TC_single_w_report(report_df, verbose=False):
+    """Read in a single-level where-used report exported from Teamcenter.
+    Reformat and export after separating out superfluous results.
+    """
+    # Get rid of report part from table.
+    core_df = report_df.drop(report_df[report_df["Level"]==0].index)
     # https://pythoninoffice.com/delete-rows-from-dataframe/
 
     # Sort so P/Ns are grouped, and revs within those groups are sorted.
-    import_df.sort_values(by=["Current ID", "Current Revision"], inplace=True)
+    core_df.sort_values(by=["Current ID", "Current Revision"], inplace=True)
     # https://datatofish.com/sort-pandas-dataframe/
     # Is this any different?
-    # import_df.sort_values(by=["Object"], inplace=True)
+    # core_df.sort_values(by=["Object"], inplace=True)
 
     # build filters to move study files, exp revs, etc. to another
     # dataframe that will be appended to end of export
     # Remove items where P/N starts w/ letter.
-    extra_filter = (    (import_df["Current ID"].str.upper().str.contains("STUDY"))
-                      | (import_df["Name"].str.upper().str.startswith("CHART"))  )
+    extra_filter = ((core_df["Current ID"].str.upper().str.contains("STUDY"))
+                  | (core_df["Name"].str.upper().str.startswith("CHART"))    )
     # https://stackoverflow.com/a/54030143
 
-    extra_df = pd.DataFrame(columns=import_df.columns)
+    extra_df = pd.DataFrame(columns=core_df.columns)
 
     # Move extranneous rows to extra_df.
-    extra_df = extra_df.append(import_df[extra_filter])
+    extra_df = extra_df.append(core_df[extra_filter])
     # https://stackoverflow.com/questions/15819050/pandas-dataframe-concat-vs-append
-    import_df.drop(import_df[extra_filter].index, inplace=True)
+    core_df.drop(core_df[extra_filter].index, inplace=True)
 
     # isolate latest rev of each thing. Not necessarily thing that sorts last.
     #   For each line, ID the P/N. Select all rows w/ this P/N.
-    for id in import_df["Current ID"]:
-        id_rows = import_df[import_df["Current ID"]==id]
+    for id in core_df["Current ID"]:
+        id_rows = core_df[core_df["Current ID"]==id]
         rev_list = list(id_rows["Current Revision"])
         latest_rev = get_latest_rev(rev_list)
 
@@ -124,9 +141,10 @@ def reformat_TC_single_w_report(import_path, verbose=False):
         old_revs = id_rows[id_rows["Current Revision"]!=latest_rev]
         extra_df = extra_df.append(old_revs)
         # Make sure no error if no other revs exist.
-        import_df.drop(old_revs.index, inplace=True)
+        core_df.drop(old_revs.index, inplace=True)
 
-    return [import_df, extra_df] # using for testing
+    return [core_df, extra_df] # using for testing
+
 
 
 
