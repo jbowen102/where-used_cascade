@@ -17,14 +17,10 @@ PROD_REV_ORDER = ["-", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L",
                                     "M", "N", "P", "R", "T", "U", "V", "W", "Y"]
 
 def is_exp_rev(rev):
-    if len(rev) >= 2:
+    if len(rev) >= 2 and rev[-2:].isnumeric():
         # Two chars could be exp or two letters.
         # Only exp revs have three or four chars. Sorts after base letter
-        try:
-            rev_num = int(rev[-2:])
-            return True
-        except ValueError:
-            return False
+        return True
     else:
         # Single-char rev must be a letter or dash.
         return False
@@ -97,8 +93,8 @@ def import_TC_single_w_report(import_path, verbose=False):
     if verbose:
         print(import_df.loc[:, ["Current ID", "Current Revision", "Name"]])
 
-    assert (import_df[import_df["Level"] == 0]["Current ID"].values[0] == report_pn,
-            "P/N in report name doesn't match level-0 result in report table.")
+    assert import_df[import_df["Level"] == 0]["Current ID"].values[0] == report_pn, \
+            "P/N in report name doesn't match level-0 result in report table."
     print("...done\n")
     return import_df
 
@@ -121,6 +117,7 @@ def reformat_TC_single_w_report(report_df, verbose=False):
     # that will be appended to end of export.
     # Remove items where P/N starts w/ letter.
     extra_filter = ((core_df["Current ID"].str.upper().str.contains("STUDY"))
+                  | (core_df["Name"].str.upper().str.startswith("STUDY"))
                   | (core_df["Name"].str.upper().str.startswith("CHART"))    )
     # https://stackoverflow.com/a/54030143
 
@@ -131,9 +128,9 @@ def reformat_TC_single_w_report(report_df, verbose=False):
     # https://stackoverflow.com/questions/15819050/pandas-dataframe-concat-vs-append
     core_df.drop(core_df[extra_filter].index, inplace=True)
 
-    # isolate latest rev of each thing. Not necessarily thing that sorts last.
-    #   For each line, ID the P/N. Select all rows w/ this P/N.
+    # Isolate latest rev of each thing. Not necessarily thing that sorts last.
     for id in core_df["Current ID"]:
+        # For each line, ID the P/N. Select all rows w/ this P/N.
         id_rows = core_df[core_df["Current ID"]==id]
         rev_list = list(id_rows["Current Revision"])
         latest_rev = get_latest_rev(rev_list)
@@ -141,7 +138,6 @@ def reformat_TC_single_w_report(report_df, verbose=False):
         # Move all but the latest rev to extra_df
         old_revs = id_rows[id_rows["Current Revision"]!=latest_rev]
         extra_df = extra_df.append(old_revs)
-        # Make sure no error if no other revs exist.
         core_df.drop(old_revs.index, inplace=True)
 
     # Combine core and extra rows w/ 4 blank rows in between.
