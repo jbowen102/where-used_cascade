@@ -159,10 +159,82 @@ def export_report(export_df, report_pn):
     print("Writing combined data to %s..." % os.path.basename(export_path))
     with pd.ExcelWriter(export_path, engine="xlsxwriter") as writer:
         # Reorder and select columns
-        export_df.to_excel(writer, index=False, freeze_panes=(1,1),
-                                columns=["Current ID", "Current Revision", "Name"])
-    print("...done")
+        sheet1 = "TC_%s" % report_pn
+        export_df.to_excel(writer, sheet_name=sheet1, index=False,
+         freeze_panes=(1,1), columns=["Current ID", "Current Revision", "Name"])
 
+        # Format spreadsheet
+        # https://xlsxwriter.readthedocs.io/working_with_pandas.html
+        # https://xlsxwriter.readthedocs.io/working_with_conditional_formats.html
+        # https://xlsxwriter.readthedocs.io/worksheet.html
+        # https://xlsxwriter.readthedocs.io/format.html
+        workbook = writer.book
+        worksheet = writer.sheets[sheet1]
+        # Right-justify P/Ns
+        r_align = workbook.add_format()
+        r_align.set_align('right')
+
+        # Center revs
+        c_align = workbook.add_format()
+        c_align.set_align('center')
+        # Specify column widths
+        worksheet.set_column(0,0,20, r_align)
+        worksheet.set_column(1,1,8, c_align)
+        worksheet.set_column(2,2,45)
+
+        # Set header row ht
+        worksheet.set_row(0, 30)
+        # Set up wrap text for header. Having to do this somewhat manually.
+        header_format = workbook.add_format({'text_wrap': True, 'bold': True})
+        header_format.set_align('center')
+        header_format.set_align('bottom')
+        worksheet.write('A1', "Current ID", header_format)
+        worksheet.write('B1', "Current\nRevision", header_format)
+        worksheet.write('C1', "Name", header_format)
+
+        # Light red fill with dark red text.
+        red_hl_ft = workbook.add_format({'bg_color':   '#FFC7CE',
+                                       'font_color': '#9C0006'})
+        # Highlight OBS
+        worksheet.conditional_format('C2:C10000', {'type': 'text',
+                                             'criteria': 'begins with',
+                                             'value': 'OBS',
+                                             'format': red_hl_ft})
+        # Grey fill.
+        grey_hl = workbook.add_format({'bg_color':   '#BFBFBF'})
+        # Grey out study files
+        worksheet.conditional_format('C2:C10000', {'type': 'text',
+                                              'criteria': 'begins with',
+                                              'value': 'STUDY',
+                                              'format': grey_hl})
+        worksheet.conditional_format('C2:C10000', {'type': 'text',
+                                           'criteria': 'begins with',
+                                           'value': 'Study',
+                                           'format': grey_hl})
+        worksheet.conditional_format('C2:C10000', {'type': 'text',
+                                       'criteria': 'begins with',
+                                       'value': 'study',
+                                       'format': grey_hl})
+        worksheet.conditional_format('A2:A10000', {'type': 'text',
+                                             'criteria': 'containing',
+                                             'value': 'STUDY',
+                                             'format': grey_hl})
+        worksheet.conditional_format('A2:A10000', {'type': 'text',
+                                          'criteria': 'containing',
+                                          'value': 'Study',
+                                          'format': grey_hl})
+        worksheet.conditional_format('A2:A10000', {'type': 'text',
+                                      'criteria': 'containing',
+                                      'value': 'study',
+                                      'format': grey_hl})
+        # Green fill.
+        # Highlight production revs green
+        green_hl = workbook.add_format({'bg_color':   '#92D050'})
+        worksheet.conditional_format('B2:B10000', {'type': 'formula',
+           'criteria': '=NOT(IFERROR(IF(ISBLANK($B2),TRUE,(INT(RIGHT($B2,2)))), FALSE))',
+           'format': green_hl})
+
+        print("...done")
 
 #######################
 import_path = "./reference/2022-03-14_630034--_TC_where-used.html"
