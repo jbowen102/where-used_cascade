@@ -194,25 +194,36 @@ def export_report(export_df, report_pn):
         worksheet.set_column(0,0,20, r_align)
         worksheet.set_column(1,1,8, c_align)
         worksheet.set_column(2,2,45)
+        worksheet.set_column(3,3,9, r_align)
 
         # Set header row ht
-        worksheet.set_row(0, 30)
+        # worksheet.set_row(0, 30)
         # Set up wrap text for header. Having to do this somewhat manually.
-        header_format = workbook.add_format({'text_wrap': True, 'bold': True})
-        header_format.set_align('center')
-        header_format.set_align('bottom')
-        worksheet.write('A1', "Current ID", header_format)
-        worksheet.write('B1', "Current\nRevision", header_format)
-        worksheet.write('C1', "Name", header_format)
+        # header_format = workbook.add_format({'bold': True})
+        # header_format.set_align('center')
+        # header_format.set_align('bottom')
+        # worksheet.set_row(0, header_format)
+        # worksheet.write('A1', "Current ID", header_format)
+        # worksheet.write('B1', "Revision", header_format)
+        # worksheet.write('C1', "Name", header_format)
 
         # Light red fill with dark red text.
         red_hl_ft = workbook.add_format({'bg_color':   '#FFC7CE',
-                                       'font_color': '#9C0006'})
+                                        'font_color': '#9C0006'})
         # Highlight OBS
         worksheet.conditional_format('C2:C10000', {'type': 'text',
-                                             'criteria': 'begins with',
-                                             'value': 'OBS',
-                                             'format': red_hl_ft})
+                                                  'criteria': 'begins with',
+                                                  'value': 'OBS',
+                                                  'format': red_hl_ft})
+
+        # Light yellow fill with dark yellow text.
+        yellow_hl_ft = workbook.add_format({'bg_color':   '#FFEB9C',
+                                            'font_color': '#9C6500'})
+        # Highlight cases where latest rev newer than rev found by where-used
+        worksheet.conditional_format('B2:D10000', {'type': 'formula',
+                                                   'criteria': '=$D2<>$B2',
+                                                   'format': yellow_hl_ft})
+
         # Grey fill.
         grey_hl = workbook.add_format({'bg_color':   '#BFBFBF'})
         # Grey out study files
@@ -240,6 +251,12 @@ def export_report(export_df, report_pn):
                                       'criteria': 'containing',
                                       'value': 'study',
                                       'format': grey_hl})
+
+        # Grey out P/Ns that start w/ letters
+        worksheet.conditional_format('A2:A10000', {'type': 'formula',
+         'criteria': '=NOT(IFERROR(IF(ISBLANK($A2),TRUE,(INT(LEFT($A2,3)))), FALSE))',
+         'format': grey_hl})
+
         # Green fill.
         # Highlight production revs green
         green_hl = workbook.add_format({'bg_color':   '#92D050'})
