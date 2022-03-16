@@ -116,10 +116,12 @@ def reformat_TC_single_w_report(report_df, verbose=False):
     # Build filters to move study files, exp revs, etc. to another dataframe
     # that will be appended to end of export.
     # Remove items where P/N starts w/ letter.
-    extra_filter = ((core_df["Current ID"].str.upper().str.contains("STUDY"))
-                  | (core_df["Name"].str.upper().str.startswith("STUDY"))
-                  | (core_df["Name"].str.upper().str.startswith("CHART"))    )
+    extra_filter = ( (core_df["Current ID"].str.upper().str.contains("STUDY"))
+                  |  (core_df["Name"].str.upper().str.startswith("STUDY"))
+                  |  (core_df["Name"].str.upper().str.startswith("CHART"))
+                  | ~(core_df["Current ID"].str[:3].str.isdecimal())          )
     # https://stackoverflow.com/a/54030143
+    # https://datagy.io/python-isdigit/
 
     extra_df = pd.DataFrame(columns=core_df.columns)
 
@@ -155,11 +157,10 @@ def export_report(export_df, report_pn):
                     "%s_%s_processed_TC_report.xlsx" % (timestamp, report_pn))
 
     print("Writing combined data to %s..." % os.path.basename(export_path))
-    # Reorder and select columns
-    export_df.to_excel(export_path, index=False, freeze_panes=(1,1),
-                            columns=["Current ID", "Current Revision", "Name"])
-    # Can col width be set?
-
+    with pd.ExcelWriter(export_path, engine="xlsxwriter") as writer:
+        # Reorder and select columns
+        export_df.to_excel(writer, index=False, freeze_panes=(1,1),
+                                columns=["Current ID", "Current Revision", "Name"])
     print("...done")
 
 
