@@ -57,18 +57,18 @@ def get_latest_rev(rev_list):
             # If no prod rev found, return this rev as latest.
             return rev
 
-def extract_revs(object_str):
+def extract_revs(pn, object_str):
     """Read in object list from export and extract list of revs.
     """
-    object_list = object_str.split(", ")
+    object_list = object_str.split(pn + "-")
     rev_list = []
     for object in object_list:
-        if "---" in object:
+        if object.startswith("---"):
             rev = "-"
         else:
-            rev = object.split("-")[1]
+            rev = object.split("-")[0]
         rev_list.append(rev)
-    return rev_list
+    return rev_list[1:] # First item in list is ''
 
 
 def import_TC_single_w_report(import_path, verbose=False):
@@ -113,6 +113,11 @@ def reformat_TC_single_w_report(report_df, verbose=False):
     # Is this any different?
     # core_df.sort_values(by=["Object"], inplace=True)
 
+    # Create new column w/ latest rev extracted from "Revisions" string
+    core_df["Rev List"] = core_df.apply(lambda x: extract_revs(x["Current ID"], x["Revisions"]), axis=1)
+    # https://stackoverflow.com/questions/34279378/python-pandas-apply-function-with-two-arguments-to-columns
+    core_df["Latest Rev"] = core_df["Rev List"].apply(get_latest_rev)
+
     # Build filters to move study files, exp revs, etc. to another dataframe
     # that will be appended to end of export.
     # Remove items where P/N starts w/ letter.
@@ -156,12 +161,20 @@ def export_report(export_df, report_pn):
     export_path = os.path.join(SCRIPT_DIR, "export",
                     "%s_%s_processed_TC_report.xlsx" % (timestamp, report_pn))
 
+
+    # Rename columns for clarity
+    export_df.rename(columns={"Current ID": "Part Number"}, inplace=True)
+    export_df.rename(columns={"Name": "Name (Teamcenter)"}, inplace=True)
+    export_df.rename(columns={"Current Revision": "Revision"}, inplace=True)
+
     print("Writing combined data to %s..." % os.path.basename(export_path))
     with pd.ExcelWriter(export_path, engine="xlsxwriter") as writer:
         # Reorder and select columns
         sheet1 = "TC_%s" % report_pn
         export_df.to_excel(writer, sheet_name=sheet1, index=False,
-         freeze_panes=(1,1), columns=["Current ID", "Current Revision", "Name"])
+                                 freeze_panes=(1,1),
+                                 columns=["Part Number", "Revision",
+                                          "Name (Teamcenter)", "Latest Rev"])
 
         # Format spreadsheet
         # https://xlsxwriter.readthedocs.io/working_with_pandas.html
