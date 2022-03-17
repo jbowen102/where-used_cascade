@@ -17,7 +17,7 @@ PROD_REV_ORDER = ["-", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L",
                                     "M", "N", "P", "R", "T", "U", "V", "W", "Y"]
 
 def is_exp_rev(rev):
-    if len(rev) >= 2 and rev[-2:].isnumeric():
+    if len(rev) >= 2 and rev[-2:].isdecimal():
         # Two chars could be exp or two letters.
         # Only exp revs have three or four chars. Sorts after base letter
         return True
@@ -63,7 +63,7 @@ def extract_revs(pn, object_str):
     object_list = object_str.split(pn + "-")
     rev_list = []
     for object in object_list:
-        if object.startswith("---"):
+        if object.startswith("--"):
             rev = "-"
         else:
             rev = object.split("-")[0]
@@ -83,7 +83,11 @@ def import_TC_single_w_report(import_path, verbose=False):
     #   "2022-03-10_637381-GEOREP1--_TC_where-used.html"
     #   "2022-02-02_614575-A_TC_where-used.html"
     report_date = file_name.split("_")[0]
-    report_pn = file_name.split("_")[1][:-2] # remove rev and dash from end.
+    if file_name.split("_")[1][-2:] == "--":
+        report_rev = "-"
+    else:
+        report_rev = file_name.split("_")[1].split("-")[-1]
+    report_pn = file_name.split(report_date + "_")[1].split("-" + report_rev)[0]
 
     print("Reading data from %s" % file_name)
     import_dfs = pd.read_html(file_path)
@@ -264,7 +268,7 @@ def export_report(export_df, report_pn):
            'criteria': '=NOT(IFERROR(IF(ISBLANK($B2),TRUE,(INT(RIGHT($B2,2)))), FALSE))',
            'format': green_hl})
 
-        print("...done")
+    print("...done")
 
 #######################
 import_path = "./reference/2022-03-14_630034--_TC_where-used.html"
