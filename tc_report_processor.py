@@ -161,9 +161,8 @@ class TCReport(object):
         """Output CSV file with reordered rows from original report.
         """
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
-        export_path = os.path.join(SCRIPT_DIR, "export",
+        export_path = os.path.join(self.dir_path,
                         "%s_%s_processed_TC_report.xlsx" % (timestamp, self.report_pn))
-
         # Rename columns for clarity
         self.export_df.rename(columns={"Current ID": "Part Number"}, inplace=True)
         self.export_df.rename(columns={"Name": "Name (Teamcenter)"}, inplace=True)
@@ -269,11 +268,14 @@ class TCReport(object):
             print("...done")
 
 #######################
+def run(import_path):
+    Report = TCReport(import_path)
+    Report.import_TC_single_w_report()
+    Report.reformat_TC_single_w_report()
+    Report.export_report()
+
 import_path = "./reference/2022-03-14_630034--_TC_where-used.html"
-Report = TCReport(import_path)
-Report.import_TC_single_w_report()
-Report.reformat_TC_single_w_report()
-Report.export_report()
+run(import_path)
 
 #######################
 
