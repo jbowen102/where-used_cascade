@@ -66,7 +66,10 @@ def extract_revs(pn, object_str):
         if object.startswith("--"):
             rev = "-"
         else:
-            rev = object.split("-")[0]
+            # Standard case requires splitting off dash and name.
+            # If part has no name, this leaves a ", " at end of each rev, so
+            # split that off. Has no effect on standard parts.
+            rev = object.split("-")[0].split(", ")[0]
         rev_list.append(rev)
     return rev_list[1:] # First item in list is ''
 
