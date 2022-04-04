@@ -15,6 +15,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Not all letters are available for use as revs in TC.
 PROD_REV_ORDER = ["-", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L",
                                     "M", "N", "P", "R", "T", "U", "V", "W", "Y"]
+# List of columns (report fields) expected to be in TC where-used report
+COL_LIST = ["Level", "Object", "Creation Date", "Current ID",
+            "Current Revision", "Date Modified", "Date Released",
+            "Last Modifying User", "Name", "Change", "Revisions"]
 
 def is_exp_rev(rev):
     if len(rev) >= 2 and rev[-2:].isdecimal():
@@ -100,6 +104,11 @@ class TCReport(object):
         # Returns list of dfs. List should only have one df.
         assert len(import_dfs) == 1, "Irregular HTML table format found."
         self.import_df = import_dfs[0]
+
+        for col in COL_LIST:
+            assert col in self.import_df.columns, ("Column '%s' not found in "
+                 "TC report. Expecting these columns: \n" % col + str(COL_LIST))
+
         if verbose:
             print(self.import_df.loc[:, ["Current ID", "Current Revision", "Name"]])
 
@@ -131,7 +140,7 @@ class TCReport(object):
         # that will be appended to end of export.
         # Remove items where P/N starts w/ letter.
         extra_filter = ( (core_df["Current ID"].str.upper().str.contains("STUDY"))
-                      |  (core_df["Name"].str.upper().str.startswith("STUDY"))
+                      |  (core_df["Name"].str.upper().str.contains("STUDY"))
                       |  (core_df["Name"].str.upper().str.startswith("CHART"))
                       | ~(core_df["Current ID"].str[:3].str.isdecimal())          )
         # https://stackoverflow.com/a/54030143
