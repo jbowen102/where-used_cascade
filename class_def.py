@@ -55,10 +55,11 @@ class Part(object):
             report_prefix = "SAP_multi_BOM_"
         else:
             raise Exception("Report prefix doesn't match any recognized format.")
-        suffix = "_".join(os.path.splitext(self.report_name)[0].split(
-                                               report_prefix)[1].split("_")[1:])
-        if len(suffix) > 0:
-            return suffix
+
+        suffix_split = os.path.splitext(self.report_name)[0].split(
+                                        report_prefix)[1].split("_", maxsplit=1)
+        if len(suffix_split) > 1:
+            return suffix_split[-1]
         else:
             return None
 
@@ -208,8 +209,8 @@ class PartGroup(object):
         # Type of report(s) being used to build PartGroup. Set in import method.
         self.report_type = None
 
-        print("\nParts:\t      %r" % self.Parts)
-        print("Report parts: %r" % self.report_Parts)
+        # print("\nParts:\t      %r" % self.Parts)
+        # print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
 
     def import_platforms(self, platform_dict):
@@ -541,8 +542,8 @@ class PartGroup(object):
                 ThisPart.add_parent(NewParent)
 
         print("...done")
-        print("\nParts:\t      %r" % self.Parts)
-        print("Report parts: %r" % self.report_Parts)
+        # print("\nParts:\t      %r" % self.Parts)
+        # print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
 
 
@@ -700,8 +701,8 @@ class PartGroup(object):
             start_pos = break_pos+1
 
         print("...done")
-        print("\nParts:\t      %r" % self.Parts)
-        print("Report parts: %r" % self.report_Parts)
+        # print("\nParts:\t      %r" % self.Parts)
+        # print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
 
 
@@ -823,7 +824,7 @@ class PartGroup(object):
         print("...done")
         # print("\nParts:\t      %r" % self.Parts)
         print("\nPart count:\t%d" % len(self.Parts))
-        print("Report parts: %r" % self.report_Parts)
+        # print("Report parts: %r" % self.report_Parts)
         print("Target parts: %r" % self.target_Parts)
 
 
@@ -938,8 +939,8 @@ class PartGroup(object):
         if len(pn_str) > (max_len - len(pn_str_suffix)):
             # If length of concatenated P/Ns exceeds 40 chars, truncate to
             # keep file name from being too long.
-            pn_str = ("+".join(pn_str[:max_len-len(pn_str_suffix)].split(
-                                                             "+")[:-1]) + "...")
+            pn_str = (pn_str[:max_len-len(pn_str_suffix)].rsplit(
+                                                    "+", maxsplit=1)[0] + "...")
 
         return "%s%s" % (pn_str, pn_str_suffix)
 
