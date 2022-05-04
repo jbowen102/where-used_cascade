@@ -18,7 +18,8 @@ PROD_REV_ORDER = ["-", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L",
 # List of columns (report fields) expected to be in TC where-used report
 COL_LIST = ["Level", "Object", "Creation Date", "Current ID",
             "Current Revision", "Date Modified", "Date Released",
-            "Last Modifying User", "Name", "Change", "Revisions"]
+            "Last Modifying User", "Name", "Change", "Revisions",
+            "Release Status"]
 
 def is_exp_rev(rev):
     if len(rev) >= 2 and rev[-2:].isdecimal():
