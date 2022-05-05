@@ -3,6 +3,7 @@ import os
 import csv
 from datetime import datetime
 import getpass
+import re
 
 import pandas as pd
 import numpy as np
@@ -56,12 +57,17 @@ class Part(object):
         else:
             raise Exception("Report prefix doesn't match any recognized format.")
 
-        suffix_split = os.path.splitext(self.report_name)[0].split(
-                                        report_prefix)[1].split("_", maxsplit=1)
-        if len(suffix_split) > 1:
-            return suffix_split[-1]
-        else:
+        suffix_regex = r"(?<=" + self.part_num + r"_)\w+(?=.XLSX$)"
+        suffix_matches = re.findall(suffix_regex, self.report_name, flags=re.IGNORECASE)
+        print(suffix_matches)
+
+        if len(suffix_matches) == 1:
+            return suffix_matches[0]
+        elif not suffix_matches:
+            # No suffix in filename - ok
             return None
+        else:
+            raise Exception("\nSuffix-matching failed for %s" % self.report_name)
 
     def get_obs_disp(self):
         return self.obs_disp
@@ -421,6 +427,10 @@ class PartGroup(object):
             pass
 
         for file_name in file_list:
+            if not (file_name.startswith(self.report_type) and
+                              os.path.splitext(file_name)[-1].lower()==".xlsx"):
+                # ignore files not matching expected report pattern
+                continue
             import_path = os.path.join(import_dir, file_name)
             if self.report_type == "SAPTC":
                 self.import_SAPTC_report(import_path)
@@ -449,10 +459,6 @@ class PartGroup(object):
         SAP plugin. Create Parts objects and link parts based on BOM hierarchy.
         """
         file_name = os.path.basename(import_path)
-        # ignore files not matching expected report pattern
-        if not (file_name.startswith("SAPTC")
-                          and os.path.splitext(file_name)[-1].lower()==".xlsx"):
-            return
 
         print("\nReading data from %s" % file_name)
         excel_data = pd.read_excel(import_path, dtype=str)
@@ -552,9 +558,10 @@ class PartGroup(object):
         Create Parts objects and link parts based on BOM hierarchy.
         """
         file_name = os.path.basename(import_path)
-        # ignore files not matching expected report pattern
-        if not (file_name.startswith("SAP_multi_w")
-                        and os.path.splitext(import_path)[-1].lower()==".xlsx"):
+        report_prefix = "SAP_multi_w"
+        if not file_name.startswith(report_prefix):
+            # ignore files not matching expected report pattern
+            print("Unrecognized report-name format (skipping): %s\n" % file_name)
             return
 
         print("\nReading data from %s" % file_name)
@@ -562,12 +569,12 @@ class PartGroup(object):
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
 
-        part_num = os.path.splitext(file_name)[0].split(
-                                                "SAP_multi_w_")[1].split("_")[0]
-        # Allowed to have additional text after P/N as long as preceded by "_".
-        assert len(part_num) >= 5, ("Found less than 5 digits "
-                    "where part number should be in filename (after "
-                    "'SAP_multi_w_'). Check formatting of %s name." % file_name)
+        pn_regex = r"(?<=^" + report_prefix + r"_)[\dA-Z]{1,40}(?=\w*\.XLSX$)"
+        pn_matches = re.findall(pn_regex, file_name, flags=re.IGNORECASE)
+        if len(pn_matches) == 1:
+            part_num = pn_matches[0]
+        else:
+            return
 
         # Check fields are in expected locations
         assert "Level" in import_data.columns, ("Expected "
@@ -711,9 +718,10 @@ class PartGroup(object):
         Create Parts objects and link parts based on BOM hierarchy.
         """
         file_name = os.path.basename(import_path)
-        # ignore files not matching expected report pattern
-        if not (file_name.startswith("SAP_multi_BOM")
-                        and os.path.splitext(import_path)[-1].lower()==".xlsx"):
+        report_prefix = "SAP_multi_BOM"
+        if not file_name.startswith(report_prefix):
+            # ignore files not matching expected report pattern
+            print("Unrecognized report-name format (skipping): %s\n" % file_name)
             return
 
         print("\nReading data from %s" % file_name)
@@ -721,12 +729,12 @@ class PartGroup(object):
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
 
-        part_num = os.path.splitext(file_name)[0].split(
-                                            "SAP_multi_BOM_")[1].split("_")[0]
-        # Allowed to have additional text after P/N as long as preceded by "_".
-        assert len(part_num) >= 5, ("Found less than 5 digits "
-                  "where part number should be in filename (after "
-                  "'SAP_multi_BOM_'). Check formatting of %s name." % file_name)
+        pn_regex = r"(?<=^" + report_prefix + r"_)[\dA-Z]{1,40}(?=\w*\.XLSX$)"
+        pn_matches = re.findall(pn_regex, file_name, flags=re.IGNORECASE)
+        if len(pn_matches) == 1:
+            part_num = pn_matches[0]
+        else:
+            return
 
         # Check fields are in expected locations
         assert "Explosion level" in import_data.columns, ("Expected "
@@ -924,7 +932,7 @@ class PartGroup(object):
             if report_suffix:
                 suffix_answer = ""
                 while suffix_answer.lower() not in ["y", "n"]:
-                    print("\nAppend report suffix '%s' to P/N string? [Y/N]"
+                    print("\nAppend report suffix '%s' to output filename? [Y/N]"
                                                                 % report_suffix)
                     suffix_answer = input("> ")
                 if suffix_answer.lower() == "y":
