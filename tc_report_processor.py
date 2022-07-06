@@ -3,6 +3,7 @@ import os
 import math
 from datetime import datetime
 import csv
+import argparse     # Used to parse optional command-line arguments
 
 import pandas as pd
 import numpy as np
@@ -40,6 +41,7 @@ def get_latest_rev(rev_list):
     Example list: ["-", "01", "02", "A", "03"]   - pick "A"
     Example list: ["-", "01", "02", "03"]        - pick "-"
     Example list: ["-", "01", "02", "03", "A01"] - pick "-"
+    Example list: ["-", "01", "02", "03", "03.001", "A", "A.001"] - pick "A"
     """
     #   If latest sorted rev is a letter (not a letter+num), that's latest rev. Want to do any check for release status here?
     #   Handle if it's two letters.
@@ -65,6 +67,28 @@ def get_latest_rev(rev_list):
 def extract_revs(pn, object_str):
     """Read in object list from export and extract list of revs.
     """
+    # regex to pick rev out of P/N-REV-NAME:
+    # "(?<=-)\-(?=-)|
+    #    (?<=-)[A-HJ-MPRT-WY]{1,2}[0-9]{0,2}(?=-)|
+    #        (?<=-)[A-HJ-MPRT-WY]{1,2}[0-9]{0,2}\.[0-9]{3}(?=-)|
+    #            (?<=-)[0-9]{2}(?=-)|
+    #                (?<=-)[0-9]{2}\.[0-9]{3}(?=-)"
+    # Test cases:
+    # 70663G10-A-FLOOR MAT,LWB,MTL BDY,W/HORN,HYD BRAKES
+    # 652149G03---MAT,FLOOR,W/O HORN,DMND,LWB,PLASTIC BODY
+    # XLWB677645G02-OBS-CHART-BB-FLOOR,MAT W/O HORN-XLWB
+    # 677645G02-OBS-CHART-BB02-FLOOR,MAT W/O HORN-XLWB
+    # 677645G02-OBS-CHART-B02-FLOOR,MAT W/O HORN-XLWB
+    # 70663G08-V05-FLOOR MAT W/HORN,HYD BRAKES,METAL BODY
+    # 70663G09-01.001-OBS-FLR MAT W/HRN,HYD BRK,MTAL BODY,DMND
+    # 70663G09-B.001-OBS-FLR MAT W/HRN,HYD BRK,MTAL BODY,DMND
+    # 652149G03-01-MAT,FLOOR,W/O HORN,DMND,LWB,PLASTIC BODY
+    # 652149G01-02-MAT,FLOOR,LWB,DMND,W/HORN HOLES
+    # 652149G01---MAT,FLOOR,LWB,DMND,W/HORN HOLES
+    # 652149G01-GEOREP1---MAT,FLOOR,LWB,DMND,W/HORN HOLES
+    # 652149G01-GEOREP02---MAT,FLOOR,LWB,DMND,W/HORN HOLES
+    # 652149G01-GEOREP02-C-OBS-MAT,FLOOR,LWB,DMND,W/HORN HOLES
+    # 677645-B-CHART-FLOOR MAT-XLWB
     object_list = object_str.split(pn + "-")
     rev_list = []
     for object in object_list:
@@ -280,17 +304,30 @@ class TCReport(object):
 
             print("...done")
 
-#######################
+
 def run(import_path):
     Report = TCReport(import_path)
     Report.import_TC_single_w_report()
     Report.reformat_TC_single_w_report()
     Report.export_report()
 
-import_path = "./reference/2022-03-14_630034--_TC_where-used.html"
+
+
+parser = argparse.ArgumentParser(description="Program to process TC where-used"
+                                                                    " reports")
+parser.add_argument("-f", "--file", help="Specify path to TC report to import "
+                    "for processing", type=str, default=None)
+# https://www.programcreek.com/python/example/748/argparse.ArgumentParser
+args = parser.parse_args()
+
+assert args.file, "Need to pass TC report file path."
+
+drive_letter = args.file[0]
+import_path = args.file.replace("\\", "/").replace("%s:" % drive_letter,
+                                                "/mnt/%s" % drive_letter.lower())
+
 run(import_path)
 
-#######################
 
 # # Reference
 # import_df.mask(~extra_filter)
