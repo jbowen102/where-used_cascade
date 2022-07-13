@@ -19,8 +19,8 @@ PROD_REV_ORDER = ["-", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L",
 # List of columns (report fields) expected to be in TC where-used report
 COL_LIST = ["Level", "Object", "Creation Date", "Current ID",
             "Current Revision", "Date Modified", "Date Released",
-            "Last Modifying User", "Name", "Change", "Revisions",
-            "Release Status"]
+            "Last Modifying User", "Name", "Change", "Release Status",
+            "Revisions"]
 
 def is_exp_rev(rev):
     if len(rev) >= 2 and rev[-2:].isdecimal():
@@ -104,13 +104,16 @@ def extract_revs(pn, object_str):
 
 
 class TCReport(object):
+    """Object representing single TC where-used report.
+    """
     def __init__(self, import_path):
-        self.file_path = os.path.realpath(import_path)
+        self.file_path = os.path.abspath(import_path)
         assert os.path.exists(self.file_path), "File path not found."
+
         self.file_name = os.path.basename(self.file_path)
         self.dir_path = os.path.dirname(self.file_path)
 
-    def import_TC_single_w_report(self, verbose=False):
+    def import_report(self, verbose=False):
         """Read in a single-level where-used report exported from Teamcenter.
         Returns dataframe with table data.
         """
@@ -141,10 +144,11 @@ class TCReport(object):
                 "P/N in report name doesn't match level-0 result in report table."
         print("...done\n")
 
-
-    def reformat_TC_single_w_report(self, verbose=False):
+    def reformat_report(self, verbose=False):
         """Read in a single-level where-used report exported from Teamcenter.
-        Reformat and export after separating out superfluous results.
+        Reformat and separate out superfluous results.
+        Put primary columns of interest at left, renamed.
+        Keep original report columns at right.
         """
         # Get rid of report part from table.
         core_df = self.import_df.drop(self.import_df[self.import_df["Level"]==0].index)
@@ -194,25 +198,39 @@ class TCReport(object):
         buffer_df = pd.DataFrame(np.nan, index=range(0, 4), columns=extra_df.columns)
         self.export_df = core_df.append(buffer_df.append(extra_df, ignore_index=True), ignore_index=True)
 
+        # Duplicate most pertinent columns and arrange at left. Original report
+        # columns will be hidden in export.
+        main_cols = ["Part Number", "Revision", "Name (Teamcenter)"] # new names
+        self.export_df[main_cols] = self.export_df[["Current ID", "Current Revision", "Name"]]
+
+        # Position specific columns at beginning, including ones previously created.
+        # Leaves all original report columns at right.
+        first_cols = main_cols + ["Latest Rev", "Rev List"]
+        self.export_df = self.export_df[first_cols + [col for col in self.export_df.columns if col not in first_cols]]
+        # https://stackoverflow.com/questions/44009896/python-pandas-copy-columns
+
+        # Rename original cols to indicate name mapping like "Current ID [=> "Part Number"]"
+        self.export_df.rename(columns={"Current ID": "Current ID [=> \"Part Number\"]"},
+                                                                inplace=True)
+        self.export_df.rename(columns={"Name": "Name [=> \"Name (Teamcenter)\"]"},
+                                                                inplace=True)
+        self.export_df.rename(columns={"Current Revision": "Current Revision [=> \"Revision\"]"},
+                                                                inplace=True)
+
+
     def export_report(self):
         """Output CSV file with reordered rows from original report.
         """
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
         export_path = os.path.join(self.dir_path,
                         "%s_%s_processed_TC_report.xlsx" % (timestamp, self.report_pn))
-        # Rename columns for clarity
-        self.export_df.rename(columns={"Current ID": "Part Number"}, inplace=True)
-        self.export_df.rename(columns={"Name": "Name (Teamcenter)"}, inplace=True)
-        self.export_df.rename(columns={"Current Revision": "Revision"}, inplace=True)
 
         print("Writing combined data to %s..." % os.path.basename(export_path))
         with pd.ExcelWriter(export_path, engine="xlsxwriter") as writer:
             # Reorder and select columns
             sheet1 = "TC_%s" % self.report_pn
             self.export_df.to_excel(writer, sheet_name=sheet1, index=False,
-                                     freeze_panes=(1,1),
-                                     columns=["Part Number", "Revision",
-                                              "Name (Teamcenter)", "Latest Rev"])
+                                                            freeze_panes=(1,1))
 
             # Format spreadsheet
             # https://xlsxwriter.readthedocs.io/working_with_pandas.html
@@ -221,18 +239,38 @@ class TCReport(object):
             # https://xlsxwriter.readthedocs.io/format.html
             workbook = writer.book
             worksheet = writer.sheets[sheet1]
-            # Right-justify P/Ns
+
+            # Right-justify format (applied below)
             r_align = workbook.add_format()
             r_align.set_align('right')
 
-            # Center revs
+            # Center-justify format (applied below)
             c_align = workbook.add_format()
             c_align.set_align('center')
-            # Specify column widths
-            worksheet.set_column(0,0,20, r_align)
-            worksheet.set_column(1,1,8, c_align)
-            worksheet.set_column(2,2,45)
-            worksheet.set_column(3,3,9, r_align)
+
+            # Specify column widths and justifications
+            col_num = self.export_df.columns.get_loc("Part Number")
+            worksheet.set_column(col_num, col_num, 20, r_align)
+
+            col_num = self.export_df.columns.get_loc("Revision")
+            worksheet.set_column(col_num, col_num, 8, c_align)
+
+            col_num = self.export_df.columns.get_loc("Name (Teamcenter)")
+            worksheet.set_column(col_num, col_num, 45)
+
+            col_num = self.export_df.columns.get_loc("Latest Rev")
+            worksheet.set_column(col_num, col_num, 9, r_align)
+
+            # Collapse original report columns carried over from TC export.
+            # Most users will probably not care about these, but keeping them for
+            # ref and debugging.
+            col_num_start = self.export_df.columns.get_loc("Rev List") + 1
+            col_num_end = len(self.export_df.columns) - 1
+            worksheet.set_column(col_num_start, col_num_end, None, None,
+                                                   {"level": 1, "hidden": True})
+            worksheet.set_column(col_num_end+1, col_num_end+1, None, None,
+                                                            {"collapsed": True})
+            # https://xlsxwriter.readthedocs.io/working_with_outlines.html
 
             # Set header row ht
             # worksheet.set_row(0, 30)
@@ -307,8 +345,8 @@ class TCReport(object):
 
 def run(import_path):
     Report = TCReport(import_path)
-    Report.import_TC_single_w_report()
-    Report.reformat_TC_single_w_report()
+    Report.import_report()
+    Report.reformat_report()
     Report.export_report()
 
 
