@@ -160,10 +160,20 @@ class TCReport(object):
         # Is this any different?
         # core_df.sort_values(by=["Object"], inplace=True)
 
-        # Create new column w/ latest rev extracted from "Revisions" string
-        core_df["Rev List"] = core_df.apply(lambda x: extract_revs(x["Current ID"], x["Revisions"]), axis=1)
+        # Create new column w/ list of revs extracted from "Revisions" string.
+        # See extract_revs() function defined above.
+        core_df["Rev List [DEBUG]"] = core_df.apply(
+                        lambda x: extract_revs(x["Current ID"], x["Revisions"]),
+                                                                        axis=1)
         # https://stackoverflow.com/questions/34279378/python-pandas-apply-function-with-two-arguments-to-columns
-        core_df["Latest Rev"] = core_df["Rev List"].apply(get_latest_rev)
+
+        # Create new column w/ report P/N so each row can be traced back to
+        # original report if multiple reports combined (like case of GEOREPs).
+        core_df["Report P/N [DEBUG]"] = self.report_pn
+
+        # Create new column w/ latest rev extracted from "Revisions" string.
+        # See get_latest_rev() function defined above.
+        core_df["Latest Rev"] = core_df["Rev List [DEBUG]"].apply(get_latest_rev)
 
         # Build filters to move study files, exp revs, etc. to another dataframe
         # that will be appended to end of export.
@@ -205,7 +215,7 @@ class TCReport(object):
 
         # Position specific columns at beginning, including ones previously created.
         # Leaves all original report columns at right.
-        first_cols = main_cols + ["Latest Rev", "Rev List"]
+        first_cols = main_cols + ["Latest Rev", "Rev List [DEBUG]", "Report P/N [DEBUG]"]
         self.export_df = self.export_df[first_cols + [col for col in self.export_df.columns if col not in first_cols]]
         # https://stackoverflow.com/questions/44009896/python-pandas-copy-columns
 
@@ -261,10 +271,19 @@ class TCReport(object):
             col_num = self.export_df.columns.get_loc("Latest Rev")
             worksheet.set_column(col_num, col_num, 9, r_align)
 
+            # Hide "Rev List [DEBUG]" and "Report P/N [DEBUG]" columns
+            # Make col width equal char count of heading
+            col_num = self.export_df.columns.get_loc("Rev List [DEBUG]")
+            worksheet.set_column(col_num, col_num, len("Rev List [DEBUG]"),
+                                                        None, {"hidden": True})
+            col_num = self.export_df.columns.get_loc("Report P/N [DEBUG]")
+            worksheet.set_column(col_num, col_num, len("Report P/N [DEBUG]"),
+                                                        None, {"hidden": True})
+
             # Collapse original report columns carried over from TC export.
             # Most users will probably not care about these, but keeping them for
             # ref and debugging.
-            col_num_start = self.export_df.columns.get_loc("Rev List") + 1
+            col_num_start = self.export_df.columns.get_loc("Report P/N [DEBUG]") + 1
             col_num_end = len(self.export_df.columns) - 1
             worksheet.set_column(col_num_start, col_num_end, None, None,
                                                    {"level": 1, "hidden": True})
