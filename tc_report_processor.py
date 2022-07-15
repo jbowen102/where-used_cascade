@@ -160,6 +160,9 @@ class TCReport(object):
         # Is this any different?
         # core_df.sort_values(by=["Object"], inplace=True)
 
+        # Create new column for comments, to be used to explain filtering.
+        core_df["Comments"] = ""
+
         # Create new column w/ list of revs extracted from "Revisions" string.
         # See extract_revs() function defined above.
         core_df["Rev List [DEBUG]"] = core_df.apply(
@@ -178,10 +181,21 @@ class TCReport(object):
         # Build filters to move study files, exp revs, etc. to another dataframe
         # that will be appended to end of export.
         # Remove items where P/N starts w/ letter.
-        extra_filter = ( (core_df["Current ID"].str.upper().str.contains("STUDY"))
-                      |  (core_df["Name"].str.upper().str.contains("STUDY"))
-                      |  (core_df["Name"].str.upper().str.startswith("CHART"))
-                      | ~(core_df["Current ID"].str[:3].str.isdecimal())          )
+
+        letter_pn_filter = ~core_df["Current ID"].str[:3].str.isdecimal()
+        chart_name_filter = core_df["Name"].str.upper().str.startswith("CHART")
+        study_name_filter = core_df["Name"].str.upper().str.contains("STUDY")
+        study_pn_filter = core_df["Current ID"].str.upper().str.contains("STUDY")
+
+        # Add comments to help user interpret results.
+        core_df.loc[letter_pn_filter, "Comments"] = "Part number starting with letters"
+        core_df.loc[chart_name_filter, "Comments"] = "Chart drawing"
+        core_df.loc[study_name_filter, "Comments"] = "Study file"
+        core_df.loc[study_pn_filter, "Comments"] = "Study file"
+        # https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+
+        extra_filter = ( letter_pn_filter   | chart_name_filter
+                        | study_name_filter | study_pn_filter   )
         # https://stackoverflow.com/a/54030143
         # https://datagy.io/python-isdigit/
 
@@ -210,13 +224,15 @@ class TCReport(object):
 
         # Duplicate most pertinent columns and arrange at left. Original report
         # columns will be hidden in export.
-        main_cols = ["Part Number", "Revision", "Name (Teamcenter)"] # new names
-        self.export_df[main_cols] = self.export_df[["Current ID", "Current Revision", "Name"]]
+        renamed_cols = ["Part Number", "Revision", "Name (Teamcenter)"] # new names
+        self.export_df[renamed_cols] = self.export_df[["Current ID", "Current Revision", "Name"]]
 
         # Position specific columns at beginning, including ones previously created.
         # Leaves all original report columns at right.
-        first_cols = main_cols + ["Latest Rev", "Rev List [DEBUG]", "Report P/N [DEBUG]"]
-        self.export_df = self.export_df[first_cols + [col for col in self.export_df.columns if col not in first_cols]]
+        first_cols = renamed_cols + ["Latest Rev", "Comments", \
+                                       "Rev List [DEBUG]", "Report P/N [DEBUG]"]
+        self.export_df = self.export_df[first_cols + [col for col in \
+                               self.export_df.columns if col not in first_cols]]
         # https://stackoverflow.com/questions/44009896/python-pandas-copy-columns
 
         # Rename original cols to indicate name mapping like "Current ID [=> "Part Number"]"
@@ -250,6 +266,10 @@ class TCReport(object):
             workbook = writer.book
             worksheet = writer.sheets[sheet1]
 
+            # Left-justify format (applied below)
+            l_align = workbook.add_format()
+            l_align.set_align('left')
+
             # Right-justify format (applied below)
             r_align = workbook.add_format()
             r_align.set_align('right')
@@ -270,6 +290,9 @@ class TCReport(object):
 
             col_num = self.export_df.columns.get_loc("Latest Rev")
             worksheet.set_column(col_num, col_num, 9, r_align)
+
+            col_num = self.export_df.columns.get_loc("Comments")
+            worksheet.set_column(col_num, col_num, 35, l_align)
 
             # Hide "Rev List [DEBUG]" and "Report P/N [DEBUG]" columns
             # Make col width equal char count of heading
