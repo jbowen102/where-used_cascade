@@ -187,6 +187,9 @@ class TCReport(object):
         study_pn_filter = core_df["Current ID"].str.upper().str.contains("STUDY")
         # Sub empty string inplace of NaNs in core_df["Release Status"] for eval (not inplace).
         obs_pn_filter = core_df["Release Status"].fillna("").str.contains("Obsolete")
+        # Used only for comments, not splitting DF. Only splitting off ones that
+        # have a new rev in report.
+        old_rev_filter = core_df["Latest Rev"] != core_df["Current Revision"]
 
         # Add comments to help user interpret results.
         core_df.loc[letter_pn_filter, "Comments"] = "Part number starting with letters"
@@ -194,6 +197,9 @@ class TCReport(object):
         core_df.loc[study_name_filter, "Comments"] = "Study file [grey highlight]"
         core_df.loc[study_pn_filter, "Comments"] = "Study file [grey highlight]"
         core_df.loc[obs_pn_filter, "Comments"] = "Obsolete status [red highlight]"
+        core_df.loc[old_rev_filter, "Comments"] = "Newer rev exists [yellow highlight]"
+        # Some old-rev comments will be overwritten below when checking for
+        # newer rev in report.
         # https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
 
 
@@ -213,12 +219,14 @@ class TCReport(object):
         for id in core_df["Current ID"]:
             # For each line, ID the P/N. Select all rows w/ this P/N.
             id_rows = core_df[core_df["Current ID"]==id]
-            rev_list = list(id_rows["Current Revision"])
-            latest_rev = get_latest_rev(rev_list)
+            rev_list = list(id_rows["Current Revision"]) # Only revs included in report.
+            latest_rev_in_report = get_latest_rev(rev_list) # Not necessarily latest rev in TC
 
             # Move all but the latest rev to extra_df
-            old_revs = id_rows[id_rows["Current Revision"]!=latest_rev]
+            old_revs = id_rows[id_rows["Current Revision"]!=latest_rev_in_report]
             extra_df = extra_df.append(old_revs)
+            # Add comment here to distinguish new revs existing in report vs. not
+            extra_df.loc[old_revs.index, "Comments"] = "Newer rev in report above [yellow highlight]"
             core_df.drop(old_revs.index, inplace=True)
 
         # Combine core and extra rows w/ 4 blank rows in between.
