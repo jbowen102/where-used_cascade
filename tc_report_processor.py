@@ -181,21 +181,24 @@ class TCReport(object):
         # Build filters to move study files, exp revs, etc. to another dataframe
         # that will be appended to end of export.
         # Remove items where P/N starts w/ letter.
-
         letter_pn_filter = ~core_df["Current ID"].str[:3].str.isdecimal()
         chart_name_filter = core_df["Name"].str.upper().str.startswith("CHART")
         study_name_filter = core_df["Name"].str.upper().str.contains("STUDY")
         study_pn_filter = core_df["Current ID"].str.upper().str.contains("STUDY")
+        # Sub empty string inplace of NaNs in core_df["Release Status"] for eval (not inplace).
+        obs_pn_filter = core_df["Release Status"].fillna("").str.contains("Obsolete")
 
         # Add comments to help user interpret results.
         core_df.loc[letter_pn_filter, "Comments"] = "Part number starting with letters"
         core_df.loc[chart_name_filter, "Comments"] = "Chart drawing"
-        core_df.loc[study_name_filter, "Comments"] = "Study file"
-        core_df.loc[study_pn_filter, "Comments"] = "Study file"
+        core_df.loc[study_name_filter, "Comments"] = "Study file [grey highlight]"
+        core_df.loc[study_pn_filter, "Comments"] = "Study file [grey highlight]"
+        core_df.loc[obs_pn_filter, "Comments"] = "Obsolete status [red highlight]"
         # https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
 
-        extra_filter = ( letter_pn_filter   | chart_name_filter
-                        | study_name_filter | study_pn_filter   )
+
+        extra_filter = (   letter_pn_filter | chart_name_filter |
+                          study_name_filter |   study_pn_filter | obs_pn_filter )
         # https://stackoverflow.com/a/54030143
         # https://datagy.io/python-isdigit/
 
@@ -333,12 +336,19 @@ class TCReport(object):
                                                       'criteria': 'begins with',
                                                       'value': 'OBS',
                                                       'format': red_hl_ft})
+            worksheet.conditional_format('C2:C10000', {'type': 'formula',
+                                                       'criteria': '=$R2="Obsolete"',
+                                                       'format': red_hl_ft})
 
             # Light yellow fill with dark yellow text.
             yellow_hl_ft = workbook.add_format({'bg_color':   '#FFEB9C',
                                                 'font_color': '#9C6500'})
+
             # Highlight cases where latest rev newer than rev found by where-used
-            worksheet.conditional_format('B2:D10000', {'type': 'formula',
+            worksheet.conditional_format('B2:B10000', {'type': 'formula',
+                                                       'criteria': '=$D2<>$B2',
+                                                       'format': yellow_hl_ft})
+            worksheet.conditional_format('D2:D10000', {'type': 'formula',
                                                        'criteria': '=$D2<>$B2',
                                                        'format': yellow_hl_ft})
 
