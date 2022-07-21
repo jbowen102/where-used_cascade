@@ -283,16 +283,16 @@ class TCReport(object):
 
             # Specify column widths and justifications
             col_num = self.export_df.columns.get_loc("Part Number")
-            worksheet.set_column(col_num, col_num, 20, r_align)
+            worksheet.set_column(col_num, col_num, 16, l_align)
 
             col_num = self.export_df.columns.get_loc("Revision")
             worksheet.set_column(col_num, col_num, 8, c_align)
 
             col_num = self.export_df.columns.get_loc("Name (Teamcenter)")
-            worksheet.set_column(col_num, col_num, 45)
+            worksheet.set_column(col_num, col_num, 45, l_align)
 
             col_num = self.export_df.columns.get_loc("Latest Rev")
-            worksheet.set_column(col_num, col_num, 9, r_align)
+            worksheet.set_column(col_num, col_num, 9, c_align)
 
             col_num = self.export_df.columns.get_loc("Comments")
             worksheet.set_column(col_num, col_num, 35, l_align)
@@ -303,8 +303,17 @@ class TCReport(object):
             worksheet.set_column(col_num, col_num, len("Rev List [DEBUG]"),
                                                         None, {"hidden": True})
             col_num = self.export_df.columns.get_loc("Report P/N [DEBUG]")
-            worksheet.set_column(col_num, col_num, len("Report P/N [DEBUG]"),
+            worksheet.set_column(col_num, col_num, len("Report P/N [DEBUG]")+4,
                                                         None, {"hidden": True})
+            # Add extra width for autofilter button (added below)
+
+            # Add filter buttons
+            # https://xlsxwriter.readthedocs.io/working_with_autofilters.html
+            # https://xlsxwriter.readthedocs.io/working_with_cell_notation.html#cell-notation
+            col_num = self.export_df.columns.get_loc("Report P/N [DEBUG]")
+            worksheet.autofilter(0, col_num, 10000, col_num)
+            #             row_start, col_start, row_end, col_end
+            # Not possible to selectively filter discontinuous ranges.
 
             # Collapse original report columns carried over from TC export.
             # Most users will probably not care about these, but keeping them for
@@ -343,7 +352,6 @@ class TCReport(object):
             # Light yellow fill with dark yellow text.
             yellow_hl_ft = workbook.add_format({'bg_color':   '#FFEB9C',
                                                 'font_color': '#9C6500'})
-
             # Highlight cases where latest rev newer than rev found by where-used
             worksheet.conditional_format('B2:B10000', {'type': 'formula',
                                                        'criteria': '=$D2<>$B2',
@@ -386,8 +394,8 @@ class TCReport(object):
              'format': grey_hl})
 
             # Green fill.
-            # Highlight production revs green
             green_hl = workbook.add_format({'bg_color':   '#92D050'})
+            # Highlight production revs green
             worksheet.conditional_format('B2:B10000', {'type': 'formula',
                'criteria': '=NOT(IFERROR(IF(ISBLANK($B2),TRUE,(INT(RIGHT($B2,2)))), FALSE))',
                'format': green_hl})
