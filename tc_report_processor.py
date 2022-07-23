@@ -43,10 +43,11 @@ def get_latest_rev(rev_list):
     Example list: ["-", "01", "02", "03", "A01"] - pick "-"
     Example list: ["-", "01", "02", "03", "03.001", "A", "A.001"] - pick "A"
     """
-    #   If latest sorted rev is a letter (not a letter+num), that's latest rev. Want to do any check for release status here?
-    #   Handle if it's two letters.
-    #   If latest sorted rev is a letter+num, decrement and continue looking for letter (recurse).
-    #   If latest sorted rev is a number, check for dash rev (doesn't sort right)
+    # If latest sorted rev is a letter (not a letter+num), that's latest rev.
+    # Want to do any check for release status here?
+    # Handle if it's two letters.
+    # If latest sorted rev is a letter+num, decrement and continue looking for letter (recurse).
+    # If latest sorted rev is a number, check for dash rev (doesn't sort right)
 
     rev = rev_list[-1]
     if is_prod_rev(rev):
@@ -101,6 +102,19 @@ def extract_revs(pn, object_str):
             rev = object.split("-")[0].split(", ")[0]
         rev_list.append(rev)
     return rev_list[1:] # First item in list is ''
+
+def get_rev_difference(rev, newer_rev):
+    assert is_prod_rev(newer_rev), "get_rev_difference() only operates on " \
+                        "production revs. If old rev is exp, returns False. " \
+                        "If newer_rev is exp, exception thrown."
+    if is_exp_rev(rev):
+        return False
+    else:
+        return PROD_REV_ORDER.index(newer_rev) - PROD_REV_ORDER.index(rev)
+
+def two_rev_diff(rev, newer_rev):
+    return ( (get_rev_difference != False)
+         and (get_rev_difference(rev, newer_rev) > 1) )
 
 
 class TCReport(object):
@@ -157,8 +171,15 @@ class TCReport(object):
         # Sort so P/Ns are grouped, and revs within those groups are sorted.
         core_df.sort_values(by=["Current ID", "Current Revision"], inplace=True)
         # https://datatofish.com/sort-pandas-dataframe/
-        # Is this any different?
+        # Probably the same:
         # core_df.sort_values(by=["Object"], inplace=True)
+
+        # Reset index after sorting
+        # Original index values get saved to new col called "index".
+        core_df.reset_index(inplace=True)
+        core_df.rename(columns={"index": "Original Row Num [DEBUG]"}, inplace=True)
+
+        # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.reset_index.html
 
         # Create new column for comments, to be used to explain filtering.
         core_df["Comments"] = ""
@@ -211,27 +232,47 @@ class TCReport(object):
         extra_df = pd.DataFrame(columns=core_df.columns)
 
         # Move extranneous rows to extra_df.
-        extra_df = extra_df.append(core_df[extra_filter])
-        # https://stackoverflow.com/questions/15819050/pandas-dataframe-concat-vs-append
+        extra_df = pd.concat([extra_df, core_df[extra_filter]])
         core_df.drop(core_df[extra_filter].index, inplace=True)
 
         # Isolate latest rev of each thing. Not necessarily thing that sorts last.
-        for id in core_df["Current ID"]:
-            # For each line, ID the P/N. Select all rows w/ this P/N.
-            id_rows = core_df[core_df["Current ID"]==id]
-            rev_list = list(id_rows["Current Revision"]) # Only revs included in report.
-            latest_rev_in_report = get_latest_rev(rev_list) # Not necessarily latest rev in TC
+        pn_set = set(core_df["Current ID"].fillna(""))
+        for pn in pn_set:
+            # Select all rows w/ this P/N.
+            pn_filter = core_df["Current ID"]==pn
+            pn_rows = core_df[pn_filter]
 
-            # Move all but the latest rev to extra_df
-            old_revs = id_rows[id_rows["Current Revision"]!=latest_rev_in_report]
-            extra_df = extra_df.append(old_revs)
-            # Add comment here to distinguish new revs existing in report vs. not
-            extra_df.loc[old_revs.index, "Comments"] = "Newer rev in report above [yellow highlight]"
-            core_df.drop(old_revs.index, inplace=True)
+            report_rev_list = list(core_df.loc[pn_filter, "Current Revision"]) # Only revs included in report.
+            latest_rev_in_report = get_latest_rev(report_rev_list) # Not necessarily latest rev in TC
+            # Every "Latest Rev" value in pn_rows is the same, so use first one.
+            latest_rev_glob = core_df.loc[pn_filter, "Latest Rev"].iloc[0]
+
+            # Identify various types of "old" revs (not mutually exclusive)
+            # global: at least one newer prod rev exists in TC
+            # two: more than one newer prod rev exists in TC
+            # rep: a newer (prod or exp) rev exists in this report
+            old_revs_glob_filter = (pn_filter) & (core_df["Current Revision"]!=latest_rev_glob)
+
+            old_revs_two_filter = (pn_filter) & (core_df["Current Revision"].apply(
+                                            lambda x: two_rev_diff(x, latest_rev_glob)))
+            old_revs_rep_filter = (pn_filter) & (core_df["Current Revision"]!=latest_rev_in_report)
+
+            # Move all but the latest rev in report to extra_df
+            # Move latest rev in report too if more than one newer production rev exists in TC.
+            # Revs to move from core_df to extra_df:
+            move_filter = (old_revs_two_filter | old_revs_rep_filter)
+
+            # Apply commments in order to layer over each other.
+            core_df.loc[old_revs_glob_filter, "Comments"] = "Newer rev exists [yellow highlight]"
+            core_df.loc[old_revs_two_filter, "Comments"] = "Newer statused rev in TC [yellow highlight]"
+            core_df.loc[old_revs_rep_filter, "Comments"] = "Newer rev in report [yellow highlight]"
+
+            extra_df = pd.concat([extra_df, core_df[move_filter]]).sort_index()
+            core_df.drop(core_df[move_filter].index, inplace=True)
 
         # Combine core and extra rows w/ 4 blank rows in between.
         buffer_df = pd.DataFrame(np.nan, index=range(0, 4), columns=extra_df.columns)
-        self.export_df = core_df.append(buffer_df.append(extra_df, ignore_index=True), ignore_index=True)
+        self.export_df = pd.concat([core_df, buffer_df, extra_df], ignore_index=True)
 
         # Duplicate most pertinent columns and arrange at left. Original report
         # columns will be hidden in export.
@@ -241,7 +282,7 @@ class TCReport(object):
         # Position specific columns at beginning, including ones previously created.
         # Leaves all original report columns at right.
         first_cols = renamed_cols + ["Latest Rev", "Comments", \
-                                       "Rev List [DEBUG]", "Report P/N [DEBUG]"]
+           "Rev List [DEBUG]", "Report P/N [DEBUG]", "Original Row Num [DEBUG]"]
         self.export_df = self.export_df[first_cols + [col for col in \
                                self.export_df.columns if col not in first_cols]]
         # https://stackoverflow.com/questions/44009896/python-pandas-copy-columns
@@ -310,12 +351,15 @@ class TCReport(object):
             col_num = self.export_df.columns.get_loc("Rev List [DEBUG]")
             worksheet.set_column(col_num, col_num, len("Rev List [DEBUG]"),
                                                         None, {"hidden": True})
+            # Add extra width to this one for autofilter button (added below)
             col_num = self.export_df.columns.get_loc("Report P/N [DEBUG]")
             worksheet.set_column(col_num, col_num, len("Report P/N [DEBUG]")+4,
                                                         None, {"hidden": True})
-            # Add extra width for autofilter button (added below)
+            col_num = self.export_df.columns.get_loc("Original Row Num [DEBUG]")
+            worksheet.set_column(col_num, col_num, len("Original Row Num [DEBUG]"),
+                                                        None, {"hidden": True})
 
-            # Add filter buttons
+            # Add filter button
             # https://xlsxwriter.readthedocs.io/working_with_autofilters.html
             # https://xlsxwriter.readthedocs.io/working_with_cell_notation.html#cell-notation
             col_num = self.export_df.columns.get_loc("Report P/N [DEBUG]")
@@ -326,7 +370,7 @@ class TCReport(object):
             # Collapse original report columns carried over from TC export.
             # Most users will probably not care about these, but keeping them for
             # ref and debugging.
-            col_num_start = self.export_df.columns.get_loc("Report P/N [DEBUG]") + 1
+            col_num_start = self.export_df.columns.get_loc("Original Row Num [DEBUG]") + 1
             col_num_end = len(self.export_df.columns) - 1
             worksheet.set_column(col_num_start, col_num_end, None, None,
                                                    {"level": 1, "hidden": True})
