@@ -271,9 +271,6 @@ class TCReport(object):
         study_pn_filter = core_df["Current ID"].str.upper().str.contains("STUDY")
         # Sub empty string inplace of NaNs in core_df["Release Status"] for eval (not inplace).
         obs_pn_filter = core_df["Release Status"].fillna("").str.contains("Obsolete")
-        # Used only for comments, not splitting DF. Only splitting off ones that
-        # have a new rev in report.
-        old_rev_filter = core_df["Latest Rev"] != core_df["Current Revision"]
 
         # Add comments to help user interpret results.
         core_df.loc[letter_pn_filter, "Comments"] = "Part number starting with letters"
@@ -281,7 +278,6 @@ class TCReport(object):
         core_df.loc[study_name_filter, "Comments"] = "Study file [grey highlight]"
         core_df.loc[study_pn_filter, "Comments"] = "Study file [grey highlight]"
         core_df.loc[obs_pn_filter, "Comments"] = "Obsolete status [red highlight]"
-        core_df.loc[old_rev_filter, "Comments"] = "Newer rev exists [yellow highlight]"
         # Some old-rev comments will be overwritten below when checking for
         # newer rev in report.
         # https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
@@ -465,7 +461,7 @@ class TCReport(object):
                                                       'value': 'OBS',
                                                       'format': red_hl_ft})
             worksheet.conditional_format('C2:C10000', {'type': 'formula',
-                                                       'criteria': '=$R2="Obsolete"',
+                                                       'criteria': '=$F2="obsolete"',
                                                        'format': red_hl_ft})
 
             # Light yellow fill with dark yellow text.
