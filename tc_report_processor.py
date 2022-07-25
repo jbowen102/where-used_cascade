@@ -105,7 +105,7 @@ def extract_revs(pn, object_str):
     return rev_list[1:] # First item in list is ''
 
 def get_rev_difference(rev, newer_rev):
-    if not is_prod_rev(newer_rev):
+    if is_exp_rev(newer_rev):
         return False
     elif is_exp_rev(rev):
         return False
@@ -113,7 +113,7 @@ def get_rev_difference(rev, newer_rev):
         return PROD_REV_ORDER.index(newer_rev) - PROD_REV_ORDER.index(rev)
 
 def two_rev_diff(rev, newer_rev):
-    return ( (get_rev_difference != False)
+    return ( (get_rev_difference(rev, newer_rev) != False)
          and (get_rev_difference(rev, newer_rev) > 1) )
 
 def parse_rev_status(status_str):
@@ -269,7 +269,7 @@ class TCReport(object):
         chart_name_filter = core_df["Name"].str.upper().str.startswith("CHART")
         study_name_filter = core_df["Name"].str.upper().str.contains("STUDY")
         study_pn_filter = core_df["Current ID"].str.upper().str.contains("STUDY")
-        # Sub empty string inplace of NaNs in core_df["Release Status"] for eval (not inplace).
+        # Sub empty string in place of NaNs in core_df["Release Status"] for eval (not inplace).
         obs_pn_filter = core_df["Release Status"].fillna("").str.contains("Obsolete")
 
         # Add comments to help user interpret results.
@@ -309,6 +309,7 @@ class TCReport(object):
             # Identify various types of "old" revs (not mutually exclusive)
             # global: at least one newer prod rev exists in TC
             # two: more than one newer prod rev exists in TC
+            # exp: a prod rev exists in TC, whereas this rev is exp.
             # rep: a newer (prod or exp) rev exists in this report
             old_revs_glob_filter = (pn_filter) & (core_df["Current Revision"]!=latest_rev_glob)
 
@@ -316,14 +317,19 @@ class TCReport(object):
                                             lambda x: two_rev_diff(x, latest_rev_glob)))
             old_revs_rep_filter = (pn_filter) & (core_df["Current Revision"]!=latest_rev_in_report)
 
+            old_revs_exp_filter = ( (pn_filter) &
+                                    (core_df["Current Revision"].apply(is_exp_rev)) &
+                                    (is_prod_rev(latest_rev_glob))                    )
+
             # Move all but the latest rev in report to extra_df
             # Move latest rev in report too if more than one newer production rev exists in TC.
             # Revs to move from core_df to extra_df:
-            move_filter = (old_revs_two_filter | old_revs_rep_filter)
+            move_filter = (old_revs_two_filter | old_revs_rep_filter | old_revs_exp_filter)
 
             # Apply commments in order to layer over each other.
             core_df.loc[old_revs_glob_filter, "Comments"] = "Newer rev exists [yellow highlight]"
             core_df.loc[old_revs_two_filter, "Comments"] = "Newer statused rev in TC [yellow highlight]"
+            core_df.loc[old_revs_exp_filter, "Comments"] = "Production rev exists [yellow highlight]"
             core_df.loc[old_revs_rep_filter, "Comments"] = "Newer rev in report [yellow highlight]"
 
             extra_df = pd.concat([extra_df, core_df[move_filter]]).sort_index()
