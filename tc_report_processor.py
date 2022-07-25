@@ -4,6 +4,7 @@ import math
 from datetime import datetime
 import csv
 import argparse     # Used to parse optional command-line arguments
+import re
 
 import pandas as pd
 import numpy as np
@@ -116,6 +117,59 @@ def two_rev_diff(rev, newer_rev):
     return ( (get_rev_difference != False)
          and (get_rev_difference(rev, newer_rev) > 1) )
 
+def parse_rev_status(status_str):
+    # "Concept"                             (check mark)
+    # "Alpha"                               (check mark)
+    # "Beta"                                (check mark)
+    # "Gamma"                               (check mark)
+    # "Gamma,Concept"                       (check mark) - e.g. 668404-03
+    # "Concept,Approved"                    (green flag)
+    # "Alpha,Approved"                      (green flag)
+    # "Beta,Approved"                       (green flag)
+    # "Gamma,Approved"                      (green flag)
+    exp_status = re.findall(r"^(concept|alpha|beta|gamma)", status_str,
+                                                            flags=re.IGNORECASE)
+    grn_status = re.findall(r"^(concept|alpha|beta|gamma),approved$", status_str,
+                                                            flags=re.IGNORECASE)
+
+    # "Engineering Released"                (yellow flag)
+    yel_status = re.findall(r"^(engineering released)$", status_str,
+                                                            flags=re.IGNORECASE)
+    # "Engineering Released -Superseded"    (yellow flag - strikethrough)
+    sup_status = re.findall(r"(superseded)$", status_str, flags=re.IGNORECASE)
+
+    # "Engineering Released,Released"       (checkered flag)
+    # "Released"                            (checkered flag)
+    # "Engineering Released,Redline Release"(red checkered flag)
+    # "Redline Release"                     (red checkered flag) - not sure this exists
+    checkd_status = re.findall(r"((?<!engineering )released)$", status_str,
+                                                            flags=re.IGNORECASE)
+    rcheckd_status = re.findall(r"(redline release)$", status_str,
+                                                            flags=re.IGNORECASE)
+
+    # "Obsolete"                            (red X)
+    obs_status = re.findall(r"^(obsolete)$", status_str, flags=re.IGNORECASE)
+
+    if not status_str:
+        # If empty string, then rev isn't statused at all.
+        return "unstatused"
+    elif len(exp_status) == 1:
+        return "exp_statused"
+    elif len(grn_status) == 1:
+        return "green_flag"
+    elif len(yel_status) == 1:
+        return "yellow_flag"
+    elif len(sup_status) == 1:
+        return "superseded_yellow"
+    elif len(checkd_status) == 1 or len(rcheckd_status) == 1:
+        return "checkered_flag"
+    elif len(rcheckd_status) == 1:
+        return "red_checkered_flag"
+    elif len(obs_status) == 1:
+        return "obsolete"
+    else:
+        raise Exception("No valid status found; %s" % status_str)
+
 
 class TCReport(object):
     """Object representing single TC where-used report.
@@ -198,6 +252,10 @@ class TCReport(object):
         # Create new column w/ latest rev extracted from "Revisions" string.
         # See get_latest_rev() function defined above.
         core_df["Latest Rev"] = core_df["Rev List [DEBUG]"].apply(get_latest_rev)
+
+        # Create new column w/ status of this P/N-rev combo.
+        # Blank status fields will be nan, so replace these w/ emptry strings first.
+        core_df["Rev Status [DEBUG]"] = core_df["Release Status"].fillna("").apply(parse_rev_status)
 
         # Build filters to move study files, exp revs, etc. to another dataframe
         # that will be appended to end of export.
@@ -282,7 +340,8 @@ class TCReport(object):
         # Position specific columns at beginning, including ones previously created.
         # Leaves all original report columns at right.
         first_cols = renamed_cols + ["Latest Rev", "Comments", \
-           "Rev List [DEBUG]", "Report P/N [DEBUG]", "Original Row Num [DEBUG]"]
+           "Rev Status [DEBUG]", "Rev List [DEBUG]", "Report P/N [DEBUG]", \
+                                                    "Original Row Num [DEBUG]"]
         self.export_df = self.export_df[first_cols + [col for col in \
                                self.export_df.columns if col not in first_cols]]
         # https://stackoverflow.com/questions/44009896/python-pandas-copy-columns
@@ -346,8 +405,11 @@ class TCReport(object):
             col_num = self.export_df.columns.get_loc("Comments")
             worksheet.set_column(col_num, col_num, 35, l_align)
 
-            # Hide "Rev List [DEBUG]" and "Report P/N [DEBUG]" columns
+            # Hide DEBUG columns
             # Make col width equal char count of heading
+            col_num = self.export_df.columns.get_loc("Rev Status [DEBUG]")
+            worksheet.set_column(col_num, col_num, len("Rev Status [DEBUG]"),
+                                                        None, {"hidden": True})
             col_num = self.export_df.columns.get_loc("Rev List [DEBUG]")
             worksheet.set_column(col_num, col_num, len("Rev List [DEBUG]"),
                                                         None, {"hidden": True})
