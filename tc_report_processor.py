@@ -466,10 +466,6 @@ class TCReport(object):
             # Light yellow fill with dark yellow text.
             yellow_hl_ft = workbook.add_format({'bg_color':   '#FFEB9C',
                                                 'font_color': '#9C6500'})
-            # Highlight cases where latest rev newer than rev found by where-used
-            worksheet.conditional_format('B2:B10000', {'type': 'formula',
-                                                       'criteria': '=$D2<>$B2',
-                                                       'format': yellow_hl_ft})
             worksheet.conditional_format('D2:D10000', {'type': 'formula',
                                                        'criteria': '=$D2<>$B2',
                                                        'format': yellow_hl_ft})
@@ -508,11 +504,7 @@ class TCReport(object):
              'format': grey_hl})
 
             # Green fill.
-            green_hl = workbook.add_format({'bg_color':   '#92D050'})
-            # Highlight production revs green
-            worksheet.conditional_format('B2:B10000', {'type': 'formula',
-               'criteria': '=NOT(IFERROR(IF(ISBLANK($B2),TRUE,(INT(RIGHT($B2,2)))), FALSE))',
-               'format': green_hl})
+            # green_hl = workbook.add_format({'bg_color':   '#92D050'})
 
             # Add status images to Revision column.
             column_num = self.export_df.columns.get_loc("Revision")
