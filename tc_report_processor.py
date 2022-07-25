@@ -194,6 +194,10 @@ class TCReport(object):
             report_rev = self.file_name.split("_")[1].split("-")[-1]
         self.report_pn = self.file_name.split(report_date + "_")[1].split("-" + report_rev)[0]
 
+        # report_pn_match = re.findall(r"(?<=^\d{4}-\d{2}-\d{2}_)[\w-]+(?=-[\w-]_TC_where-used)", self.file_name, flags=re.IGNORECASE)
+        # if len(report_pn_match) == 1:
+        #     self.report_pn = report_pn_match
+
         print("Reading data from %s" % self.file_name)
         import_dfs = pd.read_html(self.file_path)
         # Returns list of dfs. List should only have one df.
@@ -207,8 +211,10 @@ class TCReport(object):
         if verbose:
             print(self.import_df.loc[:, ["Current ID", "Current Revision", "Name"]])
 
-        assert self.import_df[self.import_df["Level"] == 0]["Current ID"].values[0] == self.report_pn, \
-                "P/N in report name doesn't match level-0 result in report table."
+        lev_0_result = self.import_df[self.import_df["Level"] == 0]["Current ID"].values[0]
+        assert lev_0_result == self.report_pn, \
+            "P/N in report name doesn't match level-0 result in report table.\n%s\n%s" \
+            % (self.report_pn, lev_0_result)
         print("...done\n")
 
     def reformat_report(self, verbose=False):
