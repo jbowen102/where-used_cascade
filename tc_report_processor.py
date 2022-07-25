@@ -105,10 +105,9 @@ def extract_revs(pn, object_str):
     return rev_list[1:] # First item in list is ''
 
 def get_rev_difference(rev, newer_rev):
-    assert is_prod_rev(newer_rev), "get_rev_difference() only operates on " \
-                        "production revs. If old rev is exp, returns False. " \
-                        "If newer_rev is exp, exception thrown."
-    if is_exp_rev(rev):
+    if not is_prod_rev(newer_rev):
+        return False
+    elif is_exp_rev(rev):
         return False
     else:
         return PROD_REV_ORDER.index(newer_rev) - PROD_REV_ORDER.index(rev)
