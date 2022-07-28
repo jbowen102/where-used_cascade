@@ -569,7 +569,7 @@ class PartGroup(object):
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
 
-        pn_regex = r"(?<=^" + report_prefix + r"_)[\dA-Z]{1,40}(?=\w*\.XLSX$)"
+        pn_regex = r"(?<=^" + report_prefix + r"_)[\dA-Z]{1,40}(?=_\S*\.XLSX$|\.XLSX$)"
         pn_matches = re.findall(pn_regex, file_name, flags=re.IGNORECASE)
         if len(pn_matches) == 1:
             part_num = pn_matches[0]
@@ -729,12 +729,12 @@ class PartGroup(object):
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
 
-        pn_regex = r"(?<=^" + report_prefix + r"_)[\dA-Z]{1,40}(?=\w*\.XLSX$)"
+        pn_regex = r"(?<=^" + report_prefix + r"_)[\dA-Z]{1,40}(?=_\S*\.XLSX$|\.XLSX$)"
         pn_matches = re.findall(pn_regex, file_name, flags=re.IGNORECASE)
         if len(pn_matches) == 1:
             part_num = pn_matches[0]
         else:
-            return
+            raise Exception("Can't find P/N in filename: %s" % file_name)
 
         # Check fields are in expected locations
         assert "Explosion level" in import_data.columns, ("Expected "
