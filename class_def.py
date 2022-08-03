@@ -358,7 +358,7 @@ class PartGroup(object):
                     target_desc = target_part_line[len(target_pn)+1:]
                     assert len(target_desc) > 1, ("Encountered %s in file "
                             "%s. Expected a description after P/N and dash."
-                                           % (target_part_line, target_filename))
+                                          % (target_part_line, target_filename))
                 else:
                     target_desc = ""
 
@@ -461,7 +461,7 @@ class PartGroup(object):
         file_name = os.path.basename(import_path)
 
         print("\nReading data from %s" % file_name)
-        excel_data = pd.read_excel(import_path, dtype=str)
+        excel_data = pd.read_excel(import_path, dtype=str, engine="openpyxl")
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
 
@@ -565,7 +565,7 @@ class PartGroup(object):
             return
 
         print("\nReading data from %s" % file_name)
-        excel_data = pd.read_excel(import_path, dtype=str)
+        excel_data = pd.read_excel(import_path, dtype=str, engine="openpyxl")
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
 
@@ -725,7 +725,7 @@ class PartGroup(object):
             return
 
         print("\nReading data from %s" % file_name)
-        excel_data = pd.read_excel(import_path, dtype=str)
+        excel_data = pd.read_excel(import_path, dtype=str, engine="openpyxl")
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
 
