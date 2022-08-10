@@ -118,6 +118,7 @@ def two_rev_diff(rev, newer_rev):
 
 def parse_rev_status(status_str):
     # "Concept"                             (check mark)
+    # "Baseline"                            (check mark)
     # "Alpha"                               (check mark)
     # "Beta"                                (check mark)
     # "Gamma"                               (check mark)
@@ -126,7 +127,7 @@ def parse_rev_status(status_str):
     # "Alpha,Approved"                      (green flag)
     # "Beta,Approved"                       (green flag)
     # "Gamma,Approved"                      (green flag)
-    exp_status = re.findall(r"^(concept|alpha|beta|gamma)", status_str,
+    exp_status = re.findall(r"^(concept|baseline|alpha|beta|gamma)", status_str,
                                                             flags=re.IGNORECASE)
     grn_status = re.findall(r"^(concept|alpha|beta|gamma),approved$", status_str,
                                                             flags=re.IGNORECASE)
@@ -167,7 +168,7 @@ def parse_rev_status(status_str):
     elif len(obs_status) == 1:
         return "obsolete"
     else:
-        raise Exception("No valid status found; %s" % status_str)
+        raise Exception("No valid status found: %s" % status_str)
 
 
 class TCReport(object):
