@@ -496,7 +496,7 @@ class TCReport(object):
                                                        'format': yellow_hl_ft})
 
             # Grey fill.
-            grey_hl = workbook.add_format({'bg_color':   '#BFBFBF'})
+            grey_hl = workbook.add_format({'bg_color':   '#D9D9D9'})
             # Grey out study files
             worksheet.conditional_format('C2:C10000', {'type': 'text',
                                                   'criteria': 'begins with',
@@ -526,6 +526,11 @@ class TCReport(object):
             # Grey out P/Ns that start w/ letters
             worksheet.conditional_format('A2:A10000', {'type': 'formula',
              'criteria': '=NOT(IFERROR(IF(ISBLANK($A2),TRUE,(INT(LEFT($A2,3)))), FALSE))',
+             'format': grey_hl})
+
+            # Grey out exp revs.
+            worksheet.conditional_format('B2:B10000', {'type': 'formula',
+             'criteria': '=AND(NOT(ISBLANK($B2)),ISNUMBER(INT(RIGHT($B2,1))))',
              'format': grey_hl})
 
             # Green fill.
