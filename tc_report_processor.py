@@ -265,6 +265,7 @@ class TCReport(object):
 
         # Build filters to move study files, exp revs, etc. to another dataframe
         # that will be appended to end of export.
+        georep_filter = core_df["Current ID"].str.upper().str.contains("GEOREP")
         # Remove items where P/N starts w/ letter.
         letter_pn_filter = ~core_df["Current ID"].str[:3].str.isdecimal()
         chart_name_filter = core_df["Name"].str.upper().str.startswith("CHART")
@@ -274,6 +275,7 @@ class TCReport(object):
         obs_pn_filter = core_df["Release Status"].fillna("").str.contains("Obsolete")
 
         # Add comments to help user interpret results.
+        core_df.loc[georep_filter, "Comments"] = "GEOREP"
         core_df.loc[letter_pn_filter, "Comments"] = "Part number starting with letters"
         core_df.loc[chart_name_filter, "Comments"] = "Chart drawing"
         core_df.loc[study_name_filter, "Comments"] = "Study file [grey highlight]"
@@ -284,8 +286,9 @@ class TCReport(object):
         # https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
 
 
-        extra_filter = (   letter_pn_filter | chart_name_filter |
-                          study_name_filter |   study_pn_filter | obs_pn_filter )
+        extra_filter = (   georep_filter    |  letter_pn_filter |
+                          chart_name_filter | study_name_filter |
+                            study_pn_filter |     obs_pn_filter   )
         # https://stackoverflow.com/a/54030143
         # https://datagy.io/python-isdigit/
 
