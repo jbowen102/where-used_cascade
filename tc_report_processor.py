@@ -540,7 +540,11 @@ class TCReport(object):
             column_num = self.export_df.columns.get_loc("Revision")
             for n, status in enumerate(self.export_df["Rev Status [DEBUG]"].fillna("")):
                 row_num = n+1
-                img_name = "%s.png" % status
+                print(str(self.export_df.loc[n, "Part Number"]) + ": " + str(is_exp_rev(str(self.export_df.loc[n, "Revision"]))))
+                if is_exp_rev(str(self.export_df.loc[n, "Revision"])):
+                     img_name = "%s_greybg.png" % status
+                else:
+                    img_name = "%s.png" % status
                 img_relpath = "./img/%s" % img_name
                 img_abspath = "%s/%s" % (SCRIPT_DIR, img_relpath)
                 if not status or status == "unstatused":
