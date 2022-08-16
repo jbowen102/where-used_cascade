@@ -170,6 +170,13 @@ def parse_rev_status(status_str):
     else:
         raise Exception("No valid status found: %s" % status_str)
 
+def convert_date(date_str):
+    if date_str:
+        timestamp = datetime.strptime(date_str, "%d-%b-%Y %H:%M")
+        return datetime.strftime(timestamp, "%Y-%m-%d")
+    else:
+        return ""
+
 
 class TCReport(object):
     """Object representing single TC where-used report.
@@ -263,6 +270,8 @@ class TCReport(object):
         # Blank status fields will be nan, so replace these w/ emptry strings first.
         core_df["Rev Status [DEBUG]"] = core_df["Release Status"].fillna("").apply(parse_rev_status)
 
+        core_df["Last Mod Date"] = core_df["Date Modified"].fillna("").apply(convert_date)
+
         # Build filters to move study files, exp revs, etc. to another dataframe
         # that will be appended to end of export.
         georep_filter = core_df["Current ID"].str.upper().str.contains("GEOREP")
@@ -350,7 +359,7 @@ class TCReport(object):
 
         # Position specific columns at beginning, including ones previously created.
         # Leaves all original report columns at right.
-        first_cols = renamed_cols + ["Latest Rev", "Comments", \
+        first_cols = renamed_cols + ["Latest Rev", "Last Mod Date", "Comments", \
            "Rev Status [DEBUG]", "Rev List [DEBUG]", "Report P/N [DEBUG]", \
                                                     "Original Row Num [DEBUG]"]
         self.export_df = self.export_df[first_cols + [col for col in \
@@ -363,6 +372,8 @@ class TCReport(object):
         self.export_df.rename(columns={"Name": "Name [=> \"Name (Teamcenter)\"]"},
                                                                 inplace=True)
         self.export_df.rename(columns={"Current Revision": "Current Revision [=> \"Revision\"]"},
+                                                                inplace=True)
+        self.export_df.rename(columns={"Date Modified": "Date Modified [=> \"Last Mod Date\"]"},
                                                                 inplace=True)
 
 
@@ -412,6 +423,9 @@ class TCReport(object):
 
             col_num = self.export_df.columns.get_loc("Latest Rev")
             worksheet.set_column(col_num, col_num, 9, c_align)
+
+            col_num = self.export_df.columns.get_loc("Last Mod Date")
+            worksheet.set_column(col_num, col_num, 13, l_align)
 
             col_num = self.export_df.columns.get_loc("Comments")
             worksheet.set_column(col_num, col_num, 35, l_align)
