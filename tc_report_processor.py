@@ -5,6 +5,7 @@ from datetime import datetime
 import csv
 import argparse     # Used to parse optional command-line arguments
 import re
+import string
 
 import pandas as pd
 import numpy as np
@@ -284,7 +285,7 @@ class TCReport(object):
         obs_pn_filter = core_df["Release Status"].fillna("").str.contains("Obsolete")
 
         # Add comments to help user interpret results.
-        core_df.loc[georep_filter, "Comments"] = "GEOREP"
+        core_df.loc[georep_filter, "Comments"] = "GEOREP [grey highlight]"
         core_df.loc[letter_pn_filter, "Comments"] = "Part number starting with letters"
         core_df.loc[chart_name_filter, "Comments"] = "Chart drawing"
         core_df.loc[study_name_filter, "Comments"] = "Study file [grey highlight]"
@@ -411,53 +412,62 @@ class TCReport(object):
             c_align = workbook.add_format()
             c_align.set_align('center')
 
+            # Store column numbers and letters, and cell ranges
+            pn_col_num = self.export_df.columns.get_loc("Part Number")
+            rev_col_num = self.export_df.columns.get_loc("Revision")
+            name_col_num = self.export_df.columns.get_loc("Name (Teamcenter)")
+            latestrev_col_num = self.export_df.columns.get_loc("Latest Rev")
+            mdate_col_num = self.export_df.columns.get_loc("Last Mod Date")
+            comments_col_num = self.export_df.columns.get_loc("Comments")
+            status_col_num = self.export_df.columns.get_loc("Rev Status [DEBUG]")
+            revlist_col_num = self.export_df.columns.get_loc("Rev List [DEBUG]")
+            reportpn_col_num = self.export_df.columns.get_loc("Report P/N [DEBUG]")
+            origrownum_col_num = self.export_df.columns.get_loc("Original Row Num [DEBUG]")
+
+            pn_col_letter = string.ascii_uppercase[pn_col_num]
+            rev_col_letter = string.ascii_uppercase[rev_col_num]
+            name_col_letter = string.ascii_uppercase[name_col_num]
+            latestrev_col_letter = string.ascii_uppercase[latestrev_col_num]
+            status_col_letter = string.ascii_uppercase[status_col_num]
+            # https://stackoverflow.com/questions/4528982/convert-alphabet-letters-to-number-in-python#4528997
+
+            pn_cell_range = '%s2:%s10000' % (pn_col_letter, pn_col_letter)
+            rev_cell_range = '%s2:%s10000' % (rev_col_letter, rev_col_letter)
+            name_cell_range = '%s2:%s10000' % (name_col_letter, name_col_letter)
+            latestrev_cell_range = '%s2:%s10000' % (latestrev_col_letter, latestrev_col_letter)
+
             # Specify column widths and justifications
-            col_num = self.export_df.columns.get_loc("Part Number")
-            worksheet.set_column(col_num, col_num, 16, l_align)
-
-            col_num = self.export_df.columns.get_loc("Revision")
-            worksheet.set_column(col_num, col_num, 8, l_align)
-
-            col_num = self.export_df.columns.get_loc("Name (Teamcenter)")
-            worksheet.set_column(col_num, col_num, 45, l_align)
-
-            col_num = self.export_df.columns.get_loc("Latest Rev")
-            worksheet.set_column(col_num, col_num, 9, c_align)
-
-            col_num = self.export_df.columns.get_loc("Last Mod Date")
-            worksheet.set_column(col_num, col_num, 13, l_align)
-
-            col_num = self.export_df.columns.get_loc("Comments")
-            worksheet.set_column(col_num, col_num, 35, l_align)
+            worksheet.set_column(pn_col_num, pn_col_num, 16, l_align)
+            worksheet.set_column(rev_col_num, rev_col_num, 8, l_align)
+            worksheet.set_column(name_col_num, name_col_num, 45, l_align)
+            worksheet.set_column(latestrev_col_num, latestrev_col_num, 9, c_align)
+            worksheet.set_column(mdate_col_num, mdate_col_num, 13, l_align)
+            worksheet.set_column(comments_col_num, comments_col_num, 35, l_align)
 
             # Hide DEBUG columns
             # Make col width equal char count of heading
-            col_num = self.export_df.columns.get_loc("Rev Status [DEBUG]")
-            worksheet.set_column(col_num, col_num, len("Rev Status [DEBUG]"),
-                                                        None, {"hidden": True})
-            col_num = self.export_df.columns.get_loc("Rev List [DEBUG]")
-            worksheet.set_column(col_num, col_num, len("Rev List [DEBUG]"),
-                                                        None, {"hidden": True})
+            worksheet.set_column(status_col_num, status_col_num,
+                              len("Rev Status [DEBUG]"), None, {"hidden": True})
+            worksheet.set_column(revlist_col_num, revlist_col_num,
+                                len("Rev List [DEBUG]"), None, {"hidden": True})
             # Add extra width to this one for autofilter button (added below)
-            col_num = self.export_df.columns.get_loc("Report P/N [DEBUG]")
-            worksheet.set_column(col_num, col_num, len("Report P/N [DEBUG]")+4,
-                                                        None, {"hidden": True})
-            col_num = self.export_df.columns.get_loc("Original Row Num [DEBUG]")
-            worksheet.set_column(col_num, col_num, len("Original Row Num [DEBUG]"),
-                                                        None, {"hidden": True})
+            worksheet.set_column(reportpn_col_num, reportpn_col_num,
+                            len("Report P/N [DEBUG]")+4, None, {"hidden": True})
+            worksheet.set_column(origrownum_col_num, origrownum_col_num,
+                        len("Original Row Num [DEBUG]"), None, {"hidden": True})
 
             # Add filter button
             # https://xlsxwriter.readthedocs.io/working_with_autofilters.html
             # https://xlsxwriter.readthedocs.io/working_with_cell_notation.html#cell-notation
-            col_num = self.export_df.columns.get_loc("Report P/N [DEBUG]")
-            worksheet.autofilter(0, col_num, 10000, col_num)
-            #             row_start, col_start, row_end, col_end
+
+            worksheet.autofilter(0, reportpn_col_num, 10000, reportpn_col_num)
+            #              row_start,   col_start,   row_end,    col_end
             # Not possible to selectively filter discontinuous ranges.
 
             # Collapse original report columns carried over from TC export.
             # Most users will probably not care about these, but keeping them for
             # ref and debugging.
-            col_num_start = self.export_df.columns.get_loc("Original Row Num [DEBUG]") + 1
+            col_num_start = origrownum_col_num + 1
             col_num_end = len(self.export_df.columns) - 1
             worksheet.set_column(col_num_start, col_num_end, None, None,
                                                    {"level": 1, "hidden": True})
@@ -478,69 +488,78 @@ class TCReport(object):
 
             # Light red fill with dark red text.
             red_hl_ft = workbook.add_format({'bg_color':   '#FFC7CE',
-                                            'font_color': '#9C0006'})
+                                             'font_color': '#9C0006' })
             # Highlight OBS
-            worksheet.conditional_format('C2:C10000', {'type': 'text',
-                                                      'criteria': 'begins with',
-                                                      'value': 'OBS',
-                                                      'format': red_hl_ft})
-            worksheet.conditional_format('C2:C10000', {'type': 'formula',
-                                                       'criteria': '=$F2="obsolete"',
-                                                       'format': red_hl_ft})
+            worksheet.conditional_format(name_cell_range,
+                                {'type': 'text', 'criteria': 'begins with',
+                                                            'value': 'OBS',
+                                                        'format': red_hl_ft})
+
+            worksheet.conditional_format(name_cell_range,
+                        {'type': 'formula',
+                         'criteria': '=$%s2="obsolete"' % status_col_letter,
+                         'format': red_hl_ft})
 
             # Light yellow fill with dark yellow text.
             yellow_hl_ft = workbook.add_format({'bg_color':   '#FFEB9C',
                                                 'font_color': '#9C6500'})
-            worksheet.conditional_format('D2:D10000', {'type': 'formula',
-                                                       'criteria': '=$D2<>$B2',
+            worksheet.conditional_format(latestrev_cell_range,
+                                    {'type': 'formula', 'criteria': '=$D2<>$B2',
                                                        'format': yellow_hl_ft})
 
             # Grey fill.
-            grey_hl = workbook.add_format({'bg_color':   '#D9D9D9'})
+            grey_hl = workbook.add_format({'bg_color': '#CFCFCF'})
             # Grey out study files
-            worksheet.conditional_format('C2:C10000', {'type': 'text',
-                                                  'criteria': 'begins with',
-                                                  'value': 'STUDY',
-                                                  'format': grey_hl})
-            worksheet.conditional_format('C2:C10000', {'type': 'text',
-                                               'criteria': 'begins with',
-                                               'value': 'Study',
-                                               'format': grey_hl})
-            worksheet.conditional_format('C2:C10000', {'type': 'text',
-                                           'criteria': 'begins with',
-                                           'value': 'study',
-                                           'format': grey_hl})
-            worksheet.conditional_format('A2:A10000', {'type': 'text',
-                                                 'criteria': 'containing',
-                                                 'value': 'STUDY',
-                                                 'format': grey_hl})
-            worksheet.conditional_format('A2:A10000', {'type': 'text',
-                                              'criteria': 'containing',
-                                              'value': 'Study',
-                                              'format': grey_hl})
-            worksheet.conditional_format('A2:A10000', {'type': 'text',
-                                          'criteria': 'containing',
-                                          'value': 'study',
-                                          'format': grey_hl})
+            worksheet.conditional_format(name_cell_range,
+                                    {'type': 'text', 'criteria': 'begins with',
+                                                            'value': 'STUDY',
+                                                            'format': grey_hl})
+            worksheet.conditional_format(name_cell_range,
+                                    {'type': 'text', 'criteria': 'begins with',
+                                                            'value': 'Study',
+                                                            'format': grey_hl})
+            worksheet.conditional_format(name_cell_range,
+                                    {'type': 'text', 'criteria': 'begins with',
+                                                            'value': 'study',
+                                                            'format': grey_hl})
+            worksheet.conditional_format(pn_cell_range,
+                                    {'type': 'text', 'criteria': 'containing',
+                                                            'value': 'STUDY',
+                                                            'format': grey_hl})
+            worksheet.conditional_format(pn_cell_range,
+                                    {'type': 'text', 'criteria': 'containing',
+                                                            'value': 'Study',
+                                                            'format': grey_hl})
+            worksheet.conditional_format(pn_cell_range,
+                                    {'type': 'text', 'criteria': 'containing',
+                                                            'value': 'study',
+                                                            'format': grey_hl})
 
             # Grey out P/Ns that start w/ letters
-            worksheet.conditional_format('A2:A10000', {'type': 'formula',
-             'criteria': '=NOT(IFERROR(IF(ISBLANK($A2),TRUE,(INT(LEFT($A2,3)))), FALSE))',
+            worksheet.conditional_format(pn_cell_range,
+            {'type': 'formula',
+             'criteria': '=NOT(IFERROR(IF(ISBLANK($%s2),TRUE,(INT(LEFT($%s2,3)))), FALSE))'
+             % (pn_col_letter, pn_col_letter),
              'format': grey_hl})
 
+            # Grey out GEOREPs.
+            worksheet.conditional_format(pn_cell_range,
+                                    {'type': 'text', 'criteria': 'containing',
+                                                            'value': 'GEOREP',
+                                                            'format': grey_hl})
+
             # Grey out exp revs.
-            worksheet.conditional_format('B2:B10000', {'type': 'formula',
-             'criteria': '=AND(NOT(ISBLANK($B2)),ISNUMBER(INT(RIGHT($B2,1))))',
+            worksheet.conditional_format(rev_cell_range, {'type': 'formula',
+             'criteria': '=AND(NOT(ISBLANK($%s2)),ISNUMBER(INT(RIGHT($%s2,1))))'
+             % (rev_col_letter, rev_col_letter),
              'format': grey_hl})
 
             # Green fill.
             # green_hl = workbook.add_format({'bg_color':   '#92D050'})
 
             # Add status images to Revision column.
-            column_num = self.export_df.columns.get_loc("Revision")
             for n, status in enumerate(self.export_df["Rev Status [DEBUG]"].fillna("")):
                 row_num = n+1
-                print(str(self.export_df.loc[n, "Part Number"]) + ": " + str(is_exp_rev(str(self.export_df.loc[n, "Revision"]))))
                 if is_exp_rev(str(self.export_df.loc[n, "Revision"])):
                      img_name = "%s_greybg.png" % status
                 else:
@@ -553,7 +572,7 @@ class TCReport(object):
                     print("\tWarning: Missing status image: %s" % img_relpath)
                     pass
                 else:
-                    worksheet.insert_image(row_num, column_num, img_abspath,
+                    worksheet.insert_image(row_num, rev_col_num, img_abspath,
                                                 {'x_offset': 40, 'y_offset': 2})
 
             print("...done")
