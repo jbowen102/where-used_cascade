@@ -60,6 +60,8 @@ elif args.mode.lower() == "union":
     """Reads in SAP multi-level BOM(s), reads in target parts.
     Exports list of target parts and every part used in any level below the
     target parts.
+    Program will report any target parts not found in multi-BOMs (and thus not
+    expanded).
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
 
@@ -76,8 +78,12 @@ elif args.mode.lower() == "union":
     AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)
 
 elif args.mode.lower() == "platform":
-    """Reads in SAP platform multi-level BOM(s), reads in target parts.
+    """Reads in SAP multi-level BOM(s), reads in target parts.
     Exports list of target parts along with which platforms each is used in.
+    Set of SAP multi-level BOMs should include every platform user wants to see
+    in results, e.g. need platform 666111 multi-BOM if you want that platform
+    to show up next to parts it uses.
+    Non-platform multi-BOMs in import folder are ignored.
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
     AllParts.import_target_parts()
@@ -86,12 +92,20 @@ elif args.mode.lower() == "platform":
                                         omit_platforms=True, platform_app=True)
 
 elif args.mode.lower() == "platform_union":
-    """Reads in SAP platform multi-level BOM(s), reads in target parts.
+    """Reads in SAP multi-level BOM(s), reads in target parts.
     Exports list of target parts and every part used in any level below the
     target parts, along with which platforms each is used in.
+    Set of SAP multi-level BOMs should include every platform user wants to see
+    in results, e.g. need platform 666111 multi-BOM if you want that platform
+    to show up next to parts it uses.
+    Non-platform multi-BOMs in import folder are used only if they contain a
+    target part. In that case, the target part's BOM is read from the multi-BOM
+    so its constituents can be unioned and included in export (along w/ platform
+    applications).
+    Program will report any target parts not found in multi-BOMs (and thus not
+    expanded).
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
-    AllParts.import_target_parts()
 
     # Export union bom w/ platform applications:
     AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
