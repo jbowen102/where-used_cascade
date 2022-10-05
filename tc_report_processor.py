@@ -18,6 +18,20 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Not all letters are available for use as revs in TC.
 PROD_REV_ORDER = ["-", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L",
                                     "M", "N", "P", "R", "T", "U", "V", "W", "Y"]
+# For two-letter revs:
+# Most-significant letter starts one position earlier than least-significant letter.
+# Least-significant letter cycles through a list that doesn't include "".
+#     "A" "B"
+#  ""|___|___|
+# "A"|___|___|
+# "B"|___|___|
+MS_REV_LETTERS = ["", "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L",
+                                    "M", "N", "P", "R", "T", "U", "V", "W", "Y"]
+LS_REV_LETTERS =     ["A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L",
+                                    "M", "N", "P", "R", "T", "U", "V", "W", "Y"]
+DISALLOWED_LETTERS = set(string.ascii_uppercase) - set(LS_REV_LETTERS)
+                        # {'I', 'O', 'Q', 'S', 'X', 'Z'}
+
 # List of columns (report fields) expected to be in TC where-used report
 COL_LIST = ["Level", "Object", "Creation Date", "Current ID",
             "Current Revision", "Date Modified", "Date Released",
@@ -105,13 +119,114 @@ def extract_revs(pn, object_str):
         rev_list.append(rev)
     return rev_list[1:] # First item in list is ''
 
-def get_rev_difference(rev, newer_rev):
-    if is_exp_rev(newer_rev):
-        return False
-    elif is_exp_rev(rev):
-        return False
+
+def rank_rev(letter_rev):
+    if letter_rev == "-":
+        return -1
+
+    ls_letter = letter_rev[-1] # least-significant
+    pos_ls = LS_REV_LETTERS.index(ls_letter)
+
+    if len(letter_rev) == 1:
+        ms_letter = "" # most-significant
+    if len(letter_rev) == 2:
+        ms_letter = letter_rev[-2]
+    pos_ms = MS_REV_LETTERS.index(ms_letter)*len(LS_REV_LETTERS)
+
+    return pos_ls + pos_ms
+
+
+def sub_bad_rev(rev, shift_fwd):
+    # shift_fwd should be True or False. False indicates letter should be shifted back.
+    if shift_fwd:
+        plus_or_minus = lambda x, y: x + y
     else:
-        return PROD_REV_ORDER.index(newer_rev) - PROD_REV_ORDER.index(rev)
+        plus_or_minus = lambda x, y: x - y
+
+    # assume Z never MS letter in double-letter rev?
+
+    # try treating disallowed letters as halfway between legit letters and round?
+
+    if len(rev) == 1:
+        # single-letter revs
+        if rev == "Z" and shift_fwd:
+            return "AA"
+        elif rev == "Z":
+            return "Y"
+        else:
+            new_pos = plus_or_minus(string.ascii_uppercase.index(rev), 1)
+            return string.ascii_uppercase[new_pos]
+
+    elif len(rev) == 2:
+        # two-letter revs:
+        if rev[0] == "Z" and shift_fwd:
+            raise Exception("Don't know what to do w/ rev %s" % rev)
+            # return "YY" # ?
+        elif rev[0] in DISALLOWED_LETTERS:
+            new_pos = plus_or_minus(string.ascii_uppercase.index(rev[0]), 1)
+            if rev[1] == "Z" and shift_fwd:
+                # Have to handle the case where ls "Z" would cause ms letter to
+                # increment again below.
+                rev = string.ascii_uppercase[new_pos] + "A"
+            else:
+                rev = string.ascii_uppercase[new_pos] + rev[1]
+
+        if rev[1] == "Z" and shift_fwd:
+            new_ms_pos = plus_or_minus(rank_rev(rev[0]), 1)
+            return LS_REV_LETTERS[new_ms_pos] + "A"
+        elif rev[1] in DISALLOWED_LETTERS:
+            new_pos = plus_or_minus(string.ascii_uppercase.index(rev[1]), 1)
+            rev = rev[0] + string.ascii_uppercase[new_pos]
+
+        return rev
+
+    else:
+        raise Exception("sub_bad_rev() received input of more than two letters"
+                                                                ": %s" % rev)
+
+
+def get_rev_difference(rev, newer_rev):
+    if is_exp_rev(newer_rev) or is_exp_rev(rev):
+        return False
+    elif rev == newer_rev:
+        # Need this explicit to avoid error if disallowed letters included.
+        return 0
+    elif len(newer_rev) > 2 or len(rev) > 2:
+        raise Exception("get_rev_difference() called with nonstandard revs:\n"
+                                            "\t%s -> %s" % (rev, newer_rev))
+    elif (len(newer_rev) == 2 and len(rev) == 2) and (rev[0] == newer_rev[0]):
+        # Same most-sig letter. Just compare least-sig letters.
+        return get_rev_difference(rev[1], newer_rev[1])
+    else:
+        # Handle legacy revs using now-disallowed letters.
+        # Promote or demote to closest allowed neighbor
+        if set([*rev]).intersection(DISALLOWED_LETTERS):
+            # Determine if single letter or either of two letters are disallowed.
+            rev = sub_bad_rev(rev, shift_fwd=False)
+        if set([*newer_rev]).intersection(DISALLOWED_LETTERS):
+            newer_rev = sub_bad_rev(newer_rev, shift_fwd=True)
+
+        return rank_rev(newer_rev) - rank_rev(rev)
+
+    # if len(newer_rev) == 1 and len(rev) == 1:
+    #     return PROD_REV_ORDER.index(newer_rev) - PROD_REV_ORDER.index(rev)
+    # elif len(newer_rev) == 2 and len(rev) == 1:
+    #     LS_diff = PROD_REV_ORDER.index(newer_rev[1])-1 + (
+    #                             len(PROD_REV_ORDER) - PROD_REV_ORDER.index(rev))
+    #     MS_diff = PROD_REV_ORDER.index(newer_rev[0]) - PROD_REV_ORDER.index("A")
+    #     return MS_diff * (len(PROD_REV_ORDER)-1) + LS_diff
+    # elif len(newer_rev) == 2 and len(rev) == 2:
+    #     "'Reduce' revs to lower rank by subtracting out common rank"
+    #     rev_MS_rank = PROD_REV_ORDER.index(rev[0])
+
+    #     MS_diff = PROD_REV_ORDER.index(newer_rev[0]) - rev_MS_rank
+    #     newer_rev_MS_rank_lowered = PROD_REV_ORDER.index(newer_rev[0]) - MS_diff
+    #     return get_rev_difference(rev[1], PROD_REV_ORDER[newer_rev_MS_rank_lowered] + newer_rev[1])
+    # elif len(newer_rev) == 1 and len(rev) == 2:
+    #     # nonstandard, but this will yield same behavior as one-char case.
+    #     return -get_rev_difference(newer_rev, rev)
+    # else:
+
 
 def two_rev_diff(rev, newer_rev):
     return ( (get_rev_difference(rev, newer_rev) != False)
