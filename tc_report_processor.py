@@ -208,25 +208,6 @@ def get_rev_difference(rev, newer_rev):
 
         return rank_rev(newer_rev) - rank_rev(rev)
 
-    # if len(newer_rev) == 1 and len(rev) == 1:
-    #     return PROD_REV_ORDER.index(newer_rev) - PROD_REV_ORDER.index(rev)
-    # elif len(newer_rev) == 2 and len(rev) == 1:
-    #     LS_diff = PROD_REV_ORDER.index(newer_rev[1])-1 + (
-    #                             len(PROD_REV_ORDER) - PROD_REV_ORDER.index(rev))
-    #     MS_diff = PROD_REV_ORDER.index(newer_rev[0]) - PROD_REV_ORDER.index("A")
-    #     return MS_diff * (len(PROD_REV_ORDER)-1) + LS_diff
-    # elif len(newer_rev) == 2 and len(rev) == 2:
-    #     "'Reduce' revs to lower rank by subtracting out common rank"
-    #     rev_MS_rank = PROD_REV_ORDER.index(rev[0])
-
-    #     MS_diff = PROD_REV_ORDER.index(newer_rev[0]) - rev_MS_rank
-    #     newer_rev_MS_rank_lowered = PROD_REV_ORDER.index(newer_rev[0]) - MS_diff
-    #     return get_rev_difference(rev[1], PROD_REV_ORDER[newer_rev_MS_rank_lowered] + newer_rev[1])
-    # elif len(newer_rev) == 1 and len(rev) == 2:
-    #     # nonstandard, but this will yield same behavior as one-char case.
-    #     return -get_rev_difference(newer_rev, rev)
-    # else:
-
 
 def two_rev_diff(rev, newer_rev):
     return ( (get_rev_difference(rev, newer_rev) != False)
@@ -293,6 +274,30 @@ def convert_date(date_str):
     else:
         return ""
 
+def parse_report_pn(report_name, base_only=False):
+    """Setting base_only argument to True will strip any "GEOREP"
+    """
+    # Report name format ex.:
+    #   "2022-03-10_637381-GEOREP1--_TC_where-used.html"
+    #   "2022-02-02_614575-A_TC_where-used.html"
+    report_date = report_name.split("_")[0]
+    if report_name.split("_")[1][-2:] == "--":
+        report_rev = "-"
+    else:
+        report_rev = report_name.split("_")[1].split("-")[-1]
+    report_pn = report_name.split(report_date + "_")[1].split("-" + report_rev)[0]
+
+    if base_only:
+        # if not "-GEOREP" in report_name.upper():
+        #     raise Exception("base_only arg specified in parse_report_pn() but "
+        #                             "'-GEOREP' not found in report filename.")
+        report_pn = report_pn.upper().split("-GEOREP")[0]
+    # report_pn_match = re.findall(r"(?<=^\d{4}-\d{2}-\d{2}_)[\w-]+(?=-[\w-]_TC_where-used)", report_name, flags=re.IGNORECASE)
+    # if len(report_pn_match) == 1:
+    #     self.report_pn = report_pn_match
+
+    return report_pn
+
 
 class TCReport(object):
     """Object representing single TC where-used report.
@@ -308,19 +313,8 @@ class TCReport(object):
         """Read in a single-level where-used report exported from Teamcenter.
         Returns dataframe with table data.
         """
-        # Report name format ex.:
-        #   "2022-03-10_637381-GEOREP1--_TC_where-used.html"
-        #   "2022-02-02_614575-A_TC_where-used.html"
-        report_date = self.file_name.split("_")[0]
-        if self.file_name.split("_")[1][-2:] == "--":
-            report_rev = "-"
-        else:
-            report_rev = self.file_name.split("_")[1].split("-")[-1]
-        self.report_pn = self.file_name.split(report_date + "_")[1].split("-" + report_rev)[0]
-
-        # report_pn_match = re.findall(r"(?<=^\d{4}-\d{2}-\d{2}_)[\w-]+(?=-[\w-]_TC_where-used)", self.file_name, flags=re.IGNORECASE)
-        # if len(report_pn_match) == 1:
-        #     self.report_pn = report_pn_match
+        # Extract report part number from file name
+        self.report_pn = parse_report_pn(self.file_name)
 
         print("Reading data from %s" % self.file_name)
         import_dfs = pd.read_html(self.file_path)
@@ -444,6 +438,7 @@ class TCReport(object):
 
             old_revs_two_filter = (pn_filter) & (core_df["Current Revision"].apply(
                                             lambda x: two_rev_diff(x, latest_rev_glob)))
+            # print("\npn: %s\n" % pn) # DEBUG
             old_revs_rep_filter = (pn_filter) & (core_df["Current Revision"]!=latest_rev_in_report)
 
             old_revs_exp_filter = ( (pn_filter) &
@@ -693,28 +688,96 @@ class TCReport(object):
             print("...done")
 
 
-def run(import_path):
-    Report = TCReport(import_path)
-    Report.import_report()
-    Report.reformat_report()
-    Report.export_report()
+class TCReportGroup(object):
+    def __init__(self, dir_path):
+        self.report_dir = dir_path
+
+    def find_tc_reports(self, pn=False, single_report_path=False):
+        """Pass either P/N or specific report path, but not both.
+        Searches self.report_dir for reports associated w/ given base P/N.
+        """
+        assert not (pn and single_report_path), "find_tc_reports() accepts " \
+                            "either P/N or specific report path, but not both."
+        self.report_set = set()
+
+        if single_report_path:
+            self.add_report(TCReport(single_report_path))
+            self.base_pn = parse_report_pn(os.path.basename(single_report_path),
+                                                                base_only=True)
+        elif pn:
+            self.base_pn = pn
+            for item in sorted(os.listdir(self.report_dir)):
+                item_path = os.path.join(self.report_dir, item)
+                if not os.path.isfile(item_path) or not item.endswith("TC_where-used.html"):
+                    continue
+                elif parse_report_pn(item, base_only=True) == self.base_pn:
+                    report_path = os.path.join(self.report_dir, item)
+                    self.add_report(TCReport(report_path))
+                    # parse_report_pn re-run in TCReport__init__() w/o base_only
+        else:
+            raise Exception("find_tc_reports() requires one arg of either P/N "
+                                                    "or specific report path")
+
+    def add_report(self, Report):
+        self.report_set.add(Report)
+
+    def process_tc_reports(self):
+        for Report in self.report_set:
+            Report.import_report()
+            Report.reformat_report()
+
+    def combine_tc_reports(self):
+        pass
+
+    def export_tc_reports(self):
+        for Report in self.report_set:
+            Report.export_report()
 
 
+def convert_win_path(path_str):
+    """Converts Windows path to Linux path."""
+    drive_letter = path_str[0]
+    return path_str.replace("\\", "/").replace("%s:" % drive_letter,
+                                            "/mnt/%s" % drive_letter.lower())
 
-parser = argparse.ArgumentParser(description="Program to process TC where-used"
-                                                                    " reports")
-parser.add_argument("-f", "--file", help="Specify path to TC report to import "
-                    "for processing", type=str, default=None)
-# https://www.programcreek.com/python/example/748/argparse.ArgumentParser
-args = parser.parse_args()
 
-assert args.file, "Need to pass TC report file path."
+if __name__ == "__main__":
+    # Don't run if module being imported. Only if script being run directly.
+    parser = argparse.ArgumentParser(description="Program to process TC "
+                                                        "where-used reports")
+    parser.add_argument("-f", "--file", help="Specify path to TC report to "
+                                "import for processing", type=str, default=None)
+    parser.add_argument("-d", "--dir", help="Specify dir containing TC reports "
+                            "to import for processing", type=str, default=None)
+    parser.add_argument("-p", "--pn", help="Specify part num that reports in "
+           "dir (specified w/ --dir option) pertain to", type=str, default=None)
+    # https://www.programcreek.com/python/example/748/argparse.ArgumentParser
+    args = parser.parse_args()
 
-drive_letter = args.file[0]
-import_path = args.file.replace("\\", "/").replace("%s:" % drive_letter,
-                                                "/mnt/%s" % drive_letter.lower())
+    if args.file:
+        path_str = convert_win_path(args.file)
+        assert os.path.isfile(path_str), "Not a valid file path: %s" % args.file
+        assert not args.dir, "Can only pass file or dir, not both."
+        ReportGroup = TCReportGroup(os.path.dirname(path_str))
+        ReportGroup.find_tc_reports(single_report_path=path_str)
+    elif args.dir:
+        path_str = convert_win_path(args.dir)
+        assert os.path.isdir(path_str), "Not a valid directory path: %s" % args.dir
+        if not args.pn:
+            # DEV: Change this to read all report P/Ns in dir and if only one P/N found, assume that's the target one.
+            pn = None
+            while not pn:
+                print("Enter part num:")
+                pn = input("> ")
+        else:
+            pn = args.pn
+        ReportGroup = TCReportGroup(path_str)
+        ReportGroup.find_tc_reports(pn=pn)
+    else:
+        raise Exception("Need to pass TC report file path or dir path.")
 
-run(import_path)
+    ReportGroup.process_tc_reports()
+    ReportGroup.export_tc_reports()
 
 
 # # Reference
