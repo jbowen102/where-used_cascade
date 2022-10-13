@@ -320,7 +320,12 @@ class TCReport(object):
         assert os.path.exists(self.file_path), "File path not found."
 
         self.file_name = os.path.basename(self.file_path)
-        self.dir_path = os.path.dirname(self.file_path)
+
+    def get_core_df(self):
+        return self.core_df
+
+    def get_extra_df(self):
+        return self.extra_df
 
     def import_report(self, verbose=False):
         """Read in a single-level where-used report exported from Teamcenter.
@@ -348,71 +353,93 @@ class TCReport(object):
             % (self.report_pn, lev_0_result)
         print("...done\n")
 
-    def reformat_report(self, verbose=False):
-        """Read in a single-level where-used report exported from Teamcenter.
-        Reformat and separate out superfluous results.
-        Put primary columns of interest at left, renamed.
+    def reformat_dataframe(self, verbose=False):
+        """Reformat single-level where-used report data and separate out
+        superfluous results. Put primary columns of interest at left, renamed.
         Keep original report columns at right.
         """
         # Get rid of report part from table.
-        core_df = self.import_df.drop(self.import_df[self.import_df["Level"]==0].index)
+        base_df = self.import_df.drop(self.import_df[self.import_df["Level"]==0].index)
         # https://pythoninoffice.com/delete-rows-from-dataframe/
 
         # Sort so P/Ns are grouped, and revs within those groups are sorted.
-        core_df.sort_values(by=["Current ID", "Current Revision"], inplace=True)
+        base_df.sort_values(by=["Current ID", "Current Revision"], inplace=True)
         # https://datatofish.com/sort-pandas-dataframe/
         # Probably the same:
-        # core_df.sort_values(by=["Object"], inplace=True)
+        # base_df.sort_values(by=["Object"], inplace=True)
 
         # Reset index after sorting
         # Original index values get saved to new col called "index".
-        core_df.reset_index(inplace=True)
-        core_df.rename(columns={"index": "Original Row Num [DEBUG]"}, inplace=True)
-
+        base_df.reset_index(inplace=True)
+        base_df.rename(columns={"index": "Original Row Num [DEBUG]"}, inplace=True)
         # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.reset_index.html
 
         # Create new column for comments, to be used to explain filtering.
-        core_df["Comments"] = ""
+        base_df["Comments"] = ""
 
         # Create new column w/ list of revs extracted from "Revisions" string.
         # See extract_revs() function defined above.
-        core_df["Rev List [DEBUG]"] = core_df.apply(
+        base_df["Rev List [DEBUG]"] = base_df.apply(
                         lambda x: extract_revs(x["Current ID"], x["Revisions"]),
                                                                         axis=1)
         # https://stackoverflow.com/questions/34279378/python-pandas-apply-function-with-two-arguments-to-columns
 
         # Create new column w/ report P/N so each row can be traced back to
         # original report if multiple reports combined (like case of GEOREPs).
-        core_df["Report P/N [DEBUG]"] = self.report_pn
+        base_df["Report P/N [DEBUG]"] = self.report_pn
 
         # Create new column w/ latest rev extracted from "Revisions" string.
         # See get_latest_rev() function defined above.
-        core_df["Latest Rev"] = core_df["Rev List [DEBUG]"].apply(get_latest_rev)
+        base_df["Latest Rev"] = base_df["Rev List [DEBUG]"].apply(get_latest_rev)
 
         # Create new column w/ status of this P/N-rev combo.
         # Blank status fields will be nan, so replace these w/ emptry strings first.
-        core_df["Rev Status [DEBUG]"] = core_df["Release Status"].fillna("").apply(parse_rev_status)
+        base_df["Rev Status [DEBUG]"] = base_df["Release Status"].fillna("").apply(parse_rev_status)
 
-        core_df["Last Mod Date"] = core_df["Date Modified"].fillna("").apply(convert_date)
+        base_df["Last Mod Date"] = base_df["Date Modified"].fillna("").apply(convert_date)
+
+        # Duplicate most pertinent columns and arrange at left. Original report
+        # columns will be hidden in export.
+        renamed_cols = ["Part Number", "Revision", "Name (Teamcenter)"] # new names
+        base_df[renamed_cols] = base_df[["Current ID", "Current Revision", "Name"]]
+
+        # Rename original cols to indicate name mapping like "Current ID [=> "Part Number"]"
+        base_df.rename(columns={"Current ID": "Current ID [=> \"Part Number\"]"},
+                                                                inplace=True)
+        base_df.rename(columns={"Name": "Name [=> \"Name (Teamcenter)\"]"},
+                                                                inplace=True)
+        base_df.rename(columns={"Current Revision": "Current Revision [=> \"Revision\"]"},
+                                                                inplace=True)
+        base_df.rename(columns={"Date Modified": "Date Modified [=> \"Last Mod Date\"]"},
+                                                                inplace=True)
+
+        # Position specific columns at beginning, including ones previously created.
+        # Leaves all original report columns at right.
+        first_cols = renamed_cols + ["Latest Rev", "Last Mod Date", "Comments", \
+           "Rev Status [DEBUG]", "Rev List [DEBUG]", "Report P/N [DEBUG]", \
+                                                    "Original Row Num [DEBUG]"]
+        base_df = base_df[first_cols + [col for col in \
+                                      base_df.columns if col not in first_cols]]
+        # https://stackoverflow.com/questions/44009896/python-pandas-copy-columns
 
         # Build filters to move study files, exp revs, etc. to another dataframe
         # that will be appended to end of export.
-        georep_filter = core_df["Current ID"].str.upper().str.contains("GEOREP")
+        georep_filter = base_df["Part Number"].str.upper().str.contains("GEOREP")
         # Remove items where P/N starts w/ letter.
-        letter_pn_filter = ~core_df["Current ID"].str[:3].str.isdecimal()
-        chart_name_filter = core_df["Name"].str.upper().str.startswith("CHART")
-        study_name_filter = core_df["Name"].str.upper().str.contains("STUDY")
-        study_pn_filter = core_df["Current ID"].str.upper().str.contains("STUDY")
-        # Sub empty string in place of NaNs in core_df["Release Status"] for eval (not inplace).
-        obs_pn_filter = core_df["Release Status"].fillna("").str.contains("Obsolete")
+        letter_pn_filter = ~base_df["Part Number"].str[:3].str.isdecimal()
+        chart_name_filter = base_df["Name (Teamcenter)"].str.upper().str.startswith("CHART")
+        study_name_filter = base_df["Name (Teamcenter)"].str.upper().str.contains("STUDY")
+        study_pn_filter = base_df["Part Number"].str.upper().str.contains("STUDY")
+        # Sub empty string in place of NaNs in base_df["Release Status"] for eval (not inplace).
+        obs_pn_filter = base_df["Release Status"].fillna("").str.contains("Obsolete")
 
         # Add comments to help user interpret results.
-        core_df.loc[georep_filter, "Comments"] = "GEOREP [grey highlight]"
-        core_df.loc[letter_pn_filter, "Comments"] = "Part number starting with letters"
-        core_df.loc[chart_name_filter, "Comments"] = "Chart drawing"
-        core_df.loc[study_name_filter, "Comments"] = "Study file [grey highlight]"
-        core_df.loc[study_pn_filter, "Comments"] = "Study file [grey highlight]"
-        core_df.loc[obs_pn_filter, "Comments"] = "Obsolete status [red highlight]"
+        base_df.loc[georep_filter, "Comments"] = "GEOREP [grey highlight]"
+        base_df.loc[letter_pn_filter, "Comments"] = "Part number starting with letters"
+        base_df.loc[chart_name_filter, "Comments"] = "Chart drawing"
+        base_df.loc[study_name_filter, "Comments"] = "Study file [grey highlight]"
+        base_df.loc[study_pn_filter, "Comments"] = "Study file [grey highlight]"
+        base_df.loc[obs_pn_filter, "Comments"] = "Obsolete status [red highlight]"
         # Some old-rev comments will be overwritten below when checking for
         # newer rev in report.
         # https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
@@ -424,38 +451,38 @@ class TCReport(object):
         # https://stackoverflow.com/a/54030143
         # https://datagy.io/python-isdigit/
 
-        extra_df = pd.DataFrame(columns=core_df.columns)
+        self.extra_df = pd.DataFrame(columns=base_df.columns)
 
         # Move extranneous rows to extra_df.
-        extra_df = pd.concat([extra_df, core_df[extra_filter]])
-        core_df.drop(core_df[extra_filter].index, inplace=True)
+        self.extra_df = pd.concat([self.extra_df, base_df[extra_filter]])
+        self.core_df = base_df.drop(base_df[extra_filter].index)
 
         # Isolate latest rev of each thing. Not necessarily thing that sorts last.
-        pn_set = set(core_df["Current ID"].fillna(""))
+        pn_set = set(self.core_df["Part Number"].fillna(""))
         for pn in pn_set:
             # Select all rows w/ this P/N.
-            pn_filter = core_df["Current ID"]==pn
-            pn_rows = core_df[pn_filter]
+            pn_filter = self.core_df["Part Number"]==pn
+            pn_rows = self.core_df[pn_filter]
 
-            report_rev_list = list(core_df.loc[pn_filter, "Current Revision"]) # Only revs included in report.
+            report_rev_list = list(self.core_df.loc[pn_filter, "Revision"]) # Only revs included in report.
             latest_rev_in_report = get_latest_rev(report_rev_list) # Not necessarily latest rev in TC
             # Every "Latest Rev" value in pn_rows is the same, so use first one.
-            latest_rev_glob = core_df.loc[pn_filter, "Latest Rev"].iloc[0]
+            latest_rev_glob = self.core_df.loc[pn_filter, "Latest Rev"].iloc[0]
 
             # Identify various types of "old" revs (not mutually exclusive)
             # global: at least one newer prod rev exists in TC
             # two: more than one newer prod rev exists in TC
             # exp: a prod rev exists in TC, whereas this rev is exp.
             # rep: a newer (prod or exp) rev exists in this report
-            old_revs_glob_filter = (pn_filter) & (core_df["Current Revision"]!=latest_rev_glob)
+            old_revs_glob_filter = (pn_filter) & (self.core_df["Revision"]!=latest_rev_glob)
 
-            old_revs_two_filter = (pn_filter) & (core_df["Current Revision"].apply(
+            old_revs_two_filter = (pn_filter) & (self.core_df["Revision"].apply(
                                             lambda x: two_rev_diff(x, latest_rev_glob)))
             # print("\npn: %s\n" % pn) # DEBUG
-            old_revs_rep_filter = (pn_filter) & (core_df["Current Revision"]!=latest_rev_in_report)
+            old_revs_rep_filter = (pn_filter) & (self.core_df["Revision"]!=latest_rev_in_report)
 
             old_revs_exp_filter = ( (pn_filter) &
-                                    (core_df["Current Revision"].apply(is_exp_rev)) &
+                                    (self.core_df["Revision"].apply(is_exp_rev)) &
                                     (is_prod_rev(latest_rev_glob))                    )
 
             # Move all but the latest rev in report to extra_df
@@ -464,54 +491,90 @@ class TCReport(object):
             move_filter = (old_revs_two_filter | old_revs_rep_filter | old_revs_exp_filter)
 
             # Apply commments in order to layer over each other.
-            core_df.loc[old_revs_glob_filter, "Comments"] = "Newer rev exists [yellow highlight]"
-            core_df.loc[old_revs_two_filter, "Comments"] = "Newer statused rev in TC [yellow highlight]"
-            core_df.loc[old_revs_exp_filter, "Comments"] = "Production rev exists [yellow highlight]"
-            core_df.loc[old_revs_rep_filter, "Comments"] = "Newer rev in report [yellow highlight]"
+            self.core_df.loc[old_revs_glob_filter, "Comments"] = "Newer rev exists [yellow highlight]"
+            self.core_df.loc[old_revs_two_filter, "Comments"] = "Newer statused rev in TC [yellow highlight]"
+            self.core_df.loc[old_revs_exp_filter, "Comments"] = "Production rev exists [yellow highlight]"
+            self.core_df.loc[old_revs_rep_filter, "Comments"] = "Newer rev in report [yellow highlight]"
 
-            extra_df = pd.concat([extra_df, core_df[move_filter]]).sort_index()
-            core_df.drop(core_df[move_filter].index, inplace=True)
-
-        # Combine core and extra rows w/ 4 blank rows in between.
-        buffer_df = pd.DataFrame(np.nan, index=range(0, 4), columns=extra_df.columns)
-        self.export_df = pd.concat([core_df, buffer_df, extra_df], ignore_index=True)
-
-        # Duplicate most pertinent columns and arrange at left. Original report
-        # columns will be hidden in export.
-        renamed_cols = ["Part Number", "Revision", "Name (Teamcenter)"] # new names
-        self.export_df[renamed_cols] = self.export_df[["Current ID", "Current Revision", "Name"]]
-
-        # Position specific columns at beginning, including ones previously created.
-        # Leaves all original report columns at right.
-        first_cols = renamed_cols + ["Latest Rev", "Last Mod Date", "Comments", \
-           "Rev Status [DEBUG]", "Rev List [DEBUG]", "Report P/N [DEBUG]", \
-                                                    "Original Row Num [DEBUG]"]
-        self.export_df = self.export_df[first_cols + [col for col in \
-                               self.export_df.columns if col not in first_cols]]
-        # https://stackoverflow.com/questions/44009896/python-pandas-copy-columns
-
-        # Rename original cols to indicate name mapping like "Current ID [=> "Part Number"]"
-        self.export_df.rename(columns={"Current ID": "Current ID [=> \"Part Number\"]"},
-                                                                inplace=True)
-        self.export_df.rename(columns={"Name": "Name [=> \"Name (Teamcenter)\"]"},
-                                                                inplace=True)
-        self.export_df.rename(columns={"Current Revision": "Current Revision [=> \"Revision\"]"},
-                                                                inplace=True)
-        self.export_df.rename(columns={"Date Modified": "Date Modified [=> \"Last Mod Date\"]"},
-                                                                inplace=True)
+            self.extra_df = pd.concat([self.extra_df, self.core_df[move_filter]]).sort_index()
+            self.core_df.drop(self.core_df[move_filter].index, inplace=True)
 
 
-    def export_report(self):
-        """Output CSV file with reordered rows from original report.
+class TCReportGroup(object):
+    def __init__(self, dir_path):
+        self.report_dir = dir_path
+
+    def find_reports(self, pn=False, single_report_path=False):
+        """Pass either P/N or specific report path, but not both.
+        Searches self.report_dir for reports associated w/ given base P/N.
         """
+        assert not (pn and single_report_path), "find_reports() accepts " \
+                            "either P/N or specific report path, but not both."
+        self.report_set = set()
+
+        if single_report_path:
+            self.add_report(TCReport(single_report_path))
+            self.base_pn = parse_report_pn(os.path.basename(single_report_path),
+                                                                base_only=True)
+        elif pn:
+            self.base_pn = pn
+            for item in sorted(os.listdir(self.report_dir)):
+                item_path = os.path.join(self.report_dir, item)
+                if not os.path.isfile(item_path) or not item.endswith("TC_where-used.html"):
+                    continue
+                elif parse_report_pn(item, base_only=True) == self.base_pn:
+                    report_path = os.path.join(self.report_dir, item)
+                    self.add_report(TCReport(report_path))
+                    # parse_report_pn re-run in TCReport.__init__() w/o base_only
+        else:
+            raise Exception("find_reports() requires one arg of either P/N "
+                                                    "or specific report path")
+
+    def add_report(self, Report):
+        self.report_set.add(Report)
+
+    def process_reports(self):
+        for Report in self.report_set:
+            Report.import_report()
+            Report.reformat_dataframe()
+
+    def combine_reports(self):
+        # Gather all core_dfs and extra_dfs
+        core_dfs = [Report.get_core_df() for Report in self.report_set]
+        extra_dfs = [Report.get_extra_df() for Report in self.report_set]
+
+        # Combine all core_dfs and export_dfs
+        core_df_combo = pd.concat(core_dfs).sort_values(by=["Object"])
+        # Eliminate duplicate P/N-rev combos (if base P/N and GEOREP are both used in same file)
+        core_df_combo.drop_duplicates(subset="Object", inplace=True)
+        # print_debug("core_df_combo:", other_thing=core_df_combo[["Part Number", "Revision", "Latest Rev"]])
+
+        extra_df_combo = pd.concat(extra_dfs).sort_values(by=["Object"])
+        extra_df_combo.drop_duplicates(subset="Object", inplace=True)
+        # print_debug("extra_df_combo:", other_thing=extra_df_combo[["Part Number", "Revision", "Latest Rev"]])
+
+        # Combine core_df_combo and extra_df_combo rows w/ 4 blank rows in between.
+        buffer_df = pd.DataFrame(np.nan, index=range(0, 4), columns=extra_df_combo.columns)
+        self.export_df = pd.concat([core_df_combo, buffer_df, extra_df_combo], ignore_index=True)
+
+    def export(self):
+        """Output XLSX file with reordered and combined data from report(s).
+        """
+        self.combine_reports()
+
+        if len(self.report_set) > 1:
+            combined = "s"
+        else:
+            combined = ""
+
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
-        export_path = os.path.join(self.dir_path,
-                        "%s_%s_processed_TC_report.xlsx" % (timestamp, self.report_pn))
+        export_path = os.path.join(self.report_dir,
+                        "%s_%s_processed_TC_report%s.xlsx" % (timestamp, self.base_pn, combined))
 
         print("Writing combined data to %s..." % os.path.basename(export_path))
         with pd.ExcelWriter(export_path, engine="xlsxwriter") as writer:
             # Reorder and select columns
-            sheet1 = "TC_%s" % self.report_pn
+            sheet1 = "TC_%s" % self.base_pn
             self.export_df.to_excel(writer, sheet_name=sheet1, index=False,
                                                             freeze_panes=(1,1))
 
@@ -700,53 +763,6 @@ class TCReport(object):
 
             print("...done")
 
-
-class TCReportGroup(object):
-    def __init__(self, dir_path):
-        self.report_dir = dir_path
-
-    def find_tc_reports(self, pn=False, single_report_path=False):
-        """Pass either P/N or specific report path, but not both.
-        Searches self.report_dir for reports associated w/ given base P/N.
-        """
-        assert not (pn and single_report_path), "find_tc_reports() accepts " \
-                            "either P/N or specific report path, but not both."
-        self.report_set = set()
-
-        if single_report_path:
-            self.add_report(TCReport(single_report_path))
-            self.base_pn = parse_report_pn(os.path.basename(single_report_path),
-                                                                base_only=True)
-        elif pn:
-            self.base_pn = pn
-            for item in sorted(os.listdir(self.report_dir)):
-                item_path = os.path.join(self.report_dir, item)
-                if not os.path.isfile(item_path) or not item.endswith("TC_where-used.html"):
-                    continue
-                elif parse_report_pn(item, base_only=True) == self.base_pn:
-                    report_path = os.path.join(self.report_dir, item)
-                    self.add_report(TCReport(report_path))
-                    # parse_report_pn re-run in TCReport__init__() w/o base_only
-        else:
-            raise Exception("find_tc_reports() requires one arg of either P/N "
-                                                    "or specific report path")
-
-    def add_report(self, Report):
-        self.report_set.add(Report)
-
-    def process_tc_reports(self):
-        for Report in self.report_set:
-            Report.import_report()
-            Report.reformat_report()
-
-    def combine_tc_reports(self):
-        pass
-
-    def export_tc_reports(self):
-        for Report in self.report_set:
-            Report.export_report()
-
-
 def convert_win_path(path_str):
     """Converts Windows path to Linux path."""
     drive_letter = path_str[0]
@@ -772,25 +788,24 @@ if __name__ == "__main__":
         assert os.path.isfile(path_str), "Not a valid file path: %s" % args.file
         assert not args.dir, "Can only pass file or dir, not both."
         ReportGroup = TCReportGroup(os.path.dirname(path_str))
-        ReportGroup.find_tc_reports(single_report_path=path_str)
+        ReportGroup.find_reports(single_report_path=path_str)
     elif args.dir:
         path_str = convert_win_path(args.dir)
         assert os.path.isdir(path_str), "Not a valid directory path: %s" % args.dir
         if not args.pn:
-            # DEV: Change this to read all report P/Ns in dir and if only one P/N found, assume that's the target one.
             pn = None
             while not pn:
-                print("Enter part num:")
+                print("Enter base part num:")
                 pn = input("> ")
         else:
             pn = args.pn
         ReportGroup = TCReportGroup(path_str)
-        ReportGroup.find_tc_reports(pn=pn)
+        ReportGroup.find_reports(pn=pn)
     else:
         raise Exception("Need to pass TC report file path or dir path.")
 
-    ReportGroup.process_tc_reports()
-    ReportGroup.export_tc_reports()
+    ReportGroup.process_reports()
+    ReportGroup.export()
 
 
 # # Reference
