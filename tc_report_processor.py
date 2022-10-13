@@ -342,7 +342,8 @@ class TCReport(object):
 
         for col in COL_LIST:
             assert col in self.import_df.columns, ("Column '%s' not found in "
-                 "TC report. Expecting these columns: \n" % col + str(COL_LIST))
+                 "TC report '%s'.\nExpecting these columns: \n"
+                                        % (col, self.file_name) + str(COL_LIST))
 
         if verbose:
             print(self.import_df.loc[:, ["Current ID", "Current Revision", "Name"]])
@@ -526,6 +527,9 @@ class TCReportGroup(object):
                     report_path = os.path.join(self.report_dir, item)
                     self.add_report(TCReport(report_path))
                     # parse_report_pn re-run in TCReport.__init__() w/o base_only
+
+            if len(self.report_set) < 1:
+                raise Exception("Found no reports matching P/N %s in %s." % (self.base_pn, self.report_dir))
         else:
             raise Exception("find_reports() requires one arg of either P/N "
                                                     "or specific report path")
