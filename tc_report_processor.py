@@ -40,6 +40,10 @@ COL_LIST = ["Level", "Object", "Creation Date", "Current ID",
             "Revisions"]
 
 
+class AssumptionFail(Exception):
+    pass
+
+
 def print_debug(text, other_thing=None, temp=False):
     colorama.init()
     if temp:
@@ -422,6 +426,36 @@ class TCReport(object):
         base_df = base_df[first_cols + [col for col in \
                                       base_df.columns if col not in first_cols]]
         # https://stackoverflow.com/questions/44009896/python-pandas-copy-columns
+
+        # Handle rare case of duplicate P/N-rev results (e.g. 605563-F report)
+        # Have to do this before splitting base_df below.
+        base_df["PN-Rev"] = base_df[["Part Number", "Revision"]].agg('-'.join, axis=1) # temporary col
+        # https://stackoverflow.com/questions/19377969/combine-two-columns-of-text-in-pandas-dataframe
+        # https://stackoverflow.com/questions/32918506/pandas-how-to-filter-dataframe-for-duplicate-items-that-occur-at-least-n-times
+        for pn_rev in set(base_df["PN-Rev"].fillna("")):
+            # Select all rows w/ this P/N-rev combo.
+            pn_rev_filter = base_df["PN-Rev"]==pn_rev
+            pn_rev_rows = base_df[pn_rev_filter]
+
+            # Find cases where P/N-rev combo is duplicated.
+            if len(pn_rev_rows) > 1:
+                # print_debug("dups:", other_thing=pn_rev_rows[["PN-Rev", "Release Status"]])
+                # print_debug("choice:", other_thing=pn_rev_rows[~pn_rev_rows["Release Status"].isna()][["PN-Rev", "Release Status"]])
+                # Seems in each case, only one of the group has a status.
+                discard_filter = pn_rev_rows["Release Status"].isna()
+                # Check assumption
+                valid_count = len(pn_rev_rows[~discard_filter]) # should be 1
+                if valid_count != 1:
+                    raise AssumptionFail("Unsure how to choose which result "
+                            "duplicate is correct (expected 1 valid; found %d)"
+                                        % valid_count, pn_rev_rows[["PN-Rev", "Release Status"]])
+                # Drop duplicate rows w/o status
+                to_be_dropped = base_df.loc[pn_rev_rows[discard_filter].index]
+                # print_debug("to be dropped:", other_thing=to_be_dropped[["PN-Rev", "Release Status"]])
+                base_df.drop(index=to_be_dropped.index, inplace=True)
+                # print_debug("dups after dropping:", other_thing=base_df[base_df["PN-Rev"]==pn_rev][["PN-Rev", "Release Status"]])
+        # Remove temporary PN-Rev col.
+        base_df.drop(columns=["PN-Rev"], inplace=True)
 
         # Build filters to move study files, exp revs, etc. to another dataframe
         # that will be appended to end of export.
