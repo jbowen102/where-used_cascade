@@ -802,6 +802,10 @@ class TCReportGroup(object):
                     worksheet.insert_image(row_num, rev_col_num, img_abspath,
                                                 {'x_offset': 40, 'y_offset': 2})
 
+            # Get rid of green triangles in output sheet.
+            worksheet.ignore_errors({"number_stored_as_text": "A2:Z10000"})
+            # https://xlsxwriter.readthedocs.io/worksheet.html#ignore_errors
+
             print("...done")
 
 def convert_win_path(path_str):
