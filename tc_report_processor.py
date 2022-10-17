@@ -352,7 +352,7 @@ class TCReport(object):
         if verbose:
             print(self.import_df.loc[:, ["Current ID", "Current Revision", "Name"]])
 
-        lev_0_result = self.import_df[self.import_df["Level"] == 0]["Current ID"].values[0]
+        lev_0_result = str(self.import_df[self.import_df["Level"] == 0]["Current ID"].values[0])
         assert lev_0_result == self.report_pn, \
             "P/N in report name doesn't match level-0 result in report table.\n%s\n%s" \
             % (self.report_pn, lev_0_result)
@@ -385,7 +385,7 @@ class TCReport(object):
         # Create new column w/ list of revs extracted from "Revisions" string.
         # See extract_revs() function defined above.
         base_df["Rev List [DEBUG]"] = base_df.apply(
-                        lambda x: extract_revs(x["Current ID"], x["Revisions"]),
+                        lambda x: extract_revs(str(x["Current ID"]), x["Revisions"]),
                                                                         axis=1)
         # https://stackoverflow.com/questions/34279378/python-pandas-apply-function-with-two-arguments-to-columns
 
@@ -398,7 +398,7 @@ class TCReport(object):
         base_df["Latest Rev"] = base_df["Rev List [DEBUG]"].apply(get_latest_rev)
 
         # Create new column w/ status of this P/N-rev combo.
-        # Blank status fields will be nan, so replace these w/ emptry strings first.
+        # Blank status fields will be nan, so replace these w/ empty strings first.
         base_df["Rev Status [DEBUG]"] = base_df["Release Status"].fillna("").apply(parse_rev_status)
 
         base_df["Last Mod Date"] = base_df["Date Modified"].fillna("").apply(convert_date)
@@ -429,7 +429,7 @@ class TCReport(object):
 
         # Handle rare case of duplicate P/N-rev results (e.g. 605563-F report)
         # Have to do this before splitting base_df below.
-        base_df["PN-Rev"] = base_df[["Part Number", "Revision"]].agg('-'.join, axis=1) # temporary col
+        base_df["PN-Rev"] = base_df[["Part Number", "Revision"]].astype(str).agg('-'.join, axis=1) # temporary col
         # https://stackoverflow.com/questions/19377969/combine-two-columns-of-text-in-pandas-dataframe
         # https://stackoverflow.com/questions/32918506/pandas-how-to-filter-dataframe-for-duplicate-items-that-occur-at-least-n-times
         for pn_rev in set(base_df["PN-Rev"].fillna("")):
@@ -459,12 +459,15 @@ class TCReport(object):
 
         # Build filters to move study files, exp revs, etc. to another dataframe
         # that will be appended to end of export.
-        georep_filter = base_df["Part Number"].str.upper().str.contains("GEOREP")
+        # georep_filter = base_df["Part Number"].upper().str.contains("GEOREP")
+        georep_filter = base_df["Part Number"].astype(str).str.upper().str.contains("GEOREP")
         # Remove items where P/N starts w/ letter.
-        letter_pn_filter = ~base_df["Part Number"].str[:3].str.isdecimal()
+        # letter_pn_filter = ~base_df["Part Number"].str[:3].isdecimal()
+        letter_pn_filter = ~base_df["Part Number"].astype(str).str[:3].str.isdecimal()
         chart_name_filter = base_df["Name (Teamcenter)"].str.upper().str.startswith("CHART")
         study_name_filter = base_df["Name (Teamcenter)"].str.upper().str.contains("STUDY")
-        study_pn_filter = base_df["Part Number"].str.upper().str.contains("STUDY")
+        # study_pn_filter = base_df["Part Number"].upper().str.contains("STUDY")
+        study_pn_filter = base_df["Part Number"].astype(str).str.upper().str.contains("STUDY")
         # Sub empty string in place of NaNs in base_df["Release Status"] for eval (not inplace).
         obs_pn_filter = base_df["Release Status"].fillna("").str.contains("Obsolete")
 
