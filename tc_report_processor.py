@@ -445,13 +445,20 @@ class TCReport(object):
                 # print_debug("dups:", other_thing=pn_rev_rows[["PN-Rev", "Release Status"]])
                 # print_debug("choice:", other_thing=pn_rev_rows[~pn_rev_rows["Release Status"].isna()][["PN-Rev", "Release Status"]])
                 # Seems in each case, only one of the group has a status.
-                discard_filter = pn_rev_rows["Release Status"].isna()
+                no_release_status_filter = pn_rev_rows["Release Status"].isna()
+                no_change_filter = pn_rev_rows["Change"].isna() # alternate criterion
                 # Check assumption
-                valid_count = len(pn_rev_rows[~discard_filter]) # should be 1
-                if valid_count != 1:
+                valid_count_rlst = len(pn_rev_rows[~no_release_status_filter]) # should be 1
+                valid_count_chg = len(pn_rev_rows[~no_change_filter]) # should be 1
+                if valid_count_rlst == 1:
+                    discard_filter = no_release_status_filter
+                elif valid_count_chg == 1:
+                    discard_filter = no_change_filter
+                else:
                     raise AssumptionFail("Unsure how to choose which result "
-                            "duplicate is correct (expected 1 valid; found %d)"
-                                        % valid_count, pn_rev_rows[["PN-Rev", "Release Status"]])
+                            "duplicate is correct (expected only one row to "
+                             "have non-empty Release Status or Change field)",
+                            pn_rev_rows[["PN-Rev", "Change", "Release Status"]])
                 # Drop duplicate rows w/o status
                 to_be_dropped = base_df.loc[pn_rev_rows[discard_filter].index]
                 # print_debug("to be dropped:", other_thing=to_be_dropped[["PN-Rev", "Release Status"]])
