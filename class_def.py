@@ -1083,9 +1083,16 @@ class TreeGraph(object):
             self.target_sub.add_node(Part_obj_node)
 
     def export_graph(self):
-        export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s_tree.png"
+        export_path_no_ext = os.path.join(SCRIPT_DIR, "export", "%s_%s_tree"
                      % (self.timestamp, self.PartsGr.get_pn_string(max_len=36)))
 
-        print("\nWriting graph to %s..." % os.path.basename(export_path))
-        self.graph.write_png(export_path)
+        export_img_path = "%s.%s" % (export_path_no_ext, "png")
+        print("\nWriting graph to %s..." % os.path.basename(export_img_path))
+        self.graph.write_png(export_img_path)
         print("...done")
+
+        # GraphViz format:
+        # export_gv_path = "%s.%s" % (export_path_no_ext, "gv")
+        # print("\nWriting graph to %s..." % os.path.basename(export_gv_path))
+        # self.graph.write(export_gv_path)
+        # print("...done")
