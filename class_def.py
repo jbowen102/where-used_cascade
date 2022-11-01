@@ -963,13 +963,14 @@ class TreeGraph(object):
     aren't "leaves" of the tree (base parts; can't be mods and assys).
     """
     def __init__(self, PartsGr, target_group_only=False, printout=False,
-                                                         exclude_desc=False):
+                                        exclude_desc=False, exclude_obs=True):
         # https://graphviz.org/doc/info/attrs.html
         # https://graphviz.org/doc/info/shapes.html
         # https://graphviz.org/doc/info/colors.html
         self.PartsGr = PartsGr
         self.target_group_only = target_group_only
         self.exclude_desc = exclude_desc
+        self.exclude_obs = exclude_obs
 
         if printout:
             self.back_color = "white"
@@ -1022,6 +1023,10 @@ class TreeGraph(object):
         inc = 0
         while len(Parts_set) > 0:
             Part_i = Parts_set.pop()
+            if (Part_i.get_obs_status(silent=True) and
+                              self.exclude_obs and
+                              Part_i not in self.PartsGr.get_target_parts()):
+                continue
             if Part_i not in self.graph_set:
                 self.create_node(Part_i)
             if Part_i.is_orphan():
@@ -1044,6 +1049,8 @@ class TreeGraph(object):
                     # Parts_group starts out w/ only target parts)
                     Parts_set.add(Parent_i)
                 if Parent_i.get_obs_status(silent=True):
+                    if self.exclude_obs:
+                        continue
                     line_color="crimson"
                 else:
                     line_color="black"
@@ -1055,6 +1062,8 @@ class TreeGraph(object):
 
     def create_node(self, Part_obj):
         if Part_obj.get_obs_status(silent=True):
+            if self.exclude_obs:
+                return
             outline_col = "crimson"
         else:
             outline_col = "black"

@@ -22,12 +22,16 @@ parser.add_argument("-gp", "--printout", help="Specify that graph should be "
 parser.add_argument("-gc", "--compact", help="Specify that graph should be "
                 "created with compact nodes (part descriptions omitted). "
                 "Only valid in 'single' or 'multi' modes.", action="store_true")
+parser.add_argument("-e", "--exclude-obs", help="Exclude obsolete parts from "
+                        "multi-level where-used graph.", action="store_true")
 # https://www.programcreek.com/python/example/748/argparse.ArgumentParser
 args = parser.parse_args()
 
 assert args.mode, "Need to pass mode argument."
 assert args.mode in ["single", "multi", "union", "platform", "platform_union",
                                         "assy_list", "union_loop", "bom_vis"]
+if args.exclude_obs:
+    assert args.mode == "multi", "-e flag can only be used with multi mode."
 
 AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
@@ -53,7 +57,8 @@ elif args.mode.lower() == "multi":
     # AllParts.get_target_obs_status()
     # AllParts.print_obs_status_trace()
     TreeViz = class_def.TreeGraph(AllParts, target_group_only=True,
-                            printout=args.printout, exclude_desc=args.compact)
+                            printout=args.printout, exclude_desc=args.compact,
+                                                exclude_obs=args.exclude_obs)
     TreeViz.export_graph()
 
 elif args.mode.lower() == "union":
