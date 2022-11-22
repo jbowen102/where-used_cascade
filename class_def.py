@@ -4,6 +4,7 @@ import csv
 from datetime import datetime
 import getpass
 import re
+import colorama
 
 import pandas as pd
 import numpy as np
@@ -217,9 +218,9 @@ class PartGroup(object):
         # Type of report(s) being used to build PartGroup. Set in import method.
         self.report_type = None
 
-        # print("\nParts:\t      %r" % self.Parts)
-        # print("Report parts: %r" % self.report_Parts)
-        print("Target parts: %r" % self.target_Parts)
+        # print("\nParts:\t      %r" % self.Parts) # DEBUG
+        # print("Report parts: %r" % self.report_Parts) # DEBUG
+        # print("Target parts: %r" % self.target_Parts) # DEBUG
 
     def import_platforms(self, platform_dict):
         """Read in platform data from given dictionary (where key is PN and
@@ -230,7 +231,7 @@ class PartGroup(object):
             platform_pn = platform.split("-")[0]
             platform_desc = platform[len(platform_pn)+1:]
             platform_obs = platform_dict[platform]
-            print("\tAdding platform %12s  to group" % platform_pn)
+            # print("\tAdding platform %12s  to group" % platform_pn) # DEBUG
             self.add_part(Platform(platform_pn, platform_desc, platform_obs))
         print("...done")
 
@@ -463,7 +464,7 @@ class PartGroup(object):
         """
         file_name = os.path.basename(import_path)
 
-        print("\nReading data from %s" % file_name)
+        print("\nReading data from %s..." % file_name)
         excel_data = pd.read_excel(import_path, dtype=str, engine="openpyxl")
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
@@ -551,9 +552,9 @@ class PartGroup(object):
                 ThisPart.add_parent(NewParent)
 
         print("...done")
-        # print("\nParts:\t      %r" % self.Parts)
-        # print("Report parts: %r" % self.report_Parts)
-        print("Target parts: %r" % self.target_Parts)
+        # print("\nParts:\t      %r" % self.Parts) # DEBUG
+        # print("Report parts: %r" % self.report_Parts) # DEBUG
+        # print("Target parts: %r" % self.target_Parts) # DEBUG
 
 
     def import_SAP_multi_w_report(self, import_path, verbose=False):
@@ -567,7 +568,7 @@ class PartGroup(object):
             print("Unrecognized report-name format (skipping): %s\n" % file_name)
             return
 
-        print("\nReading data from %s" % file_name)
+        print("\nReading data from %s..." % file_name)
         excel_data = pd.read_excel(import_path, dtype=str, engine="openpyxl")
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
@@ -711,9 +712,9 @@ class PartGroup(object):
             start_pos = break_pos+1
 
         print("...done")
-        # print("\nParts:\t      %r" % self.Parts)
-        # print("Report parts: %r" % self.report_Parts)
-        print("Target parts: %r" % self.target_Parts)
+        # print("\nParts:\t      %r" % self.Parts) # DEBUG
+        # print("Report parts: %r" % self.report_Parts) # DEBUG
+        # print("Target parts: %r" % self.target_Parts) # DEBUG
 
 
     def import_SAP_multi_BOM_report(self, import_path, verbose=False):
@@ -727,7 +728,7 @@ class PartGroup(object):
             print("Unrecognized report-name format (skipping): %s\n" % file_name)
             return
 
-        print("\nReading data from %s" % file_name)
+        print("\nReading data from %s..." % file_name)
         excel_data = pd.read_excel(import_path, dtype=str, engine="openpyxl")
         import_data = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
@@ -833,10 +834,10 @@ class PartGroup(object):
             previous_level = current_level
 
         print("...done")
-        # print("\nParts:\t      %r" % self.Parts)
-        print("\nPart count:\t%d" % len(self.Parts))
-        # print("Report parts: %r" % self.report_Parts)
-        print("Target parts: %r" % self.target_Parts)
+        # print("\nParts:\t      %r" % self.Parts) # DEBUG
+        print("\nPart count:\t%d" % len(self.Parts)) # DEBUG
+        # print("Report parts: %r" % self.report_Parts) # DEBUG
+        print("Target parts: %r" % self.target_Parts) # DEBUG
 
 
     def find_missing_reports(self):
@@ -933,11 +934,19 @@ class PartGroup(object):
             report_suffix = suffix_Part.get_report_suffix()
 
             if report_suffix:
+                colorama.init()
                 suffix_answer = ""
                 while suffix_answer.lower() not in ["y", "n"]:
-                    print("\nAppend report suffix '%s' to output filename? [Y/N]"
-                                                                % report_suffix)
-                    suffix_answer = input("> ")
+                    print(colorama.Fore.GREEN + colorama.Style.BRIGHT +
+                        "\nAppend report suffix '%s' to " "output filename? "
+                                                        "[Y/N]" % report_suffix)
+                    try:
+                        suffix_answer = input("> ")
+                    except:
+                        pass
+                    finally:
+                        print(colorama.Style.RESET_ALL)
+                        quit()
                 if suffix_answer.lower() == "y":
                     pn_str_suffix = "_" + report_suffix
                 else:
