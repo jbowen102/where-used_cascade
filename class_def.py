@@ -60,9 +60,9 @@ class Part(object):
         else:
             raise Exception("Report prefix doesn't match any recognized format.")
 
-        suffix_regex = r"(?<=" + self.part_num + r"_)\w+(?=.XLSX$)"
+        suffix_regex = r"(?<=" + self.part_num + r"_)[\w\-]+(?=.XLSX$)"
         suffix_matches = re.findall(suffix_regex, self.report_name, flags=re.IGNORECASE)
-        print(suffix_matches)
+        # print("\nSuffix matches: %r" % suffix_matches) # DEBUG
 
         if len(suffix_matches) == 1:
             return suffix_matches[0]
