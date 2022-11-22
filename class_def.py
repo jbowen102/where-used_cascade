@@ -12,6 +12,9 @@ print("...done\n")
 
 # dir path where this script is stored
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+IMPORT_DIR = os.path.join(SCRIPT_DIR, "import")
+EXPORT_DIR = os.path.join(SCRIPT_DIR, "export")
+TARGET_PARTS_PATH = os.path.join(IMPORT_DIR, "target_parts.txt")
 # https://stackoverflow.com/questions/29768937/return-the-file-path-of-the-file-not-the-current-directory
 
 class Part(object):
@@ -202,7 +205,6 @@ class PartGroup(object):
     folder.
     """
     def __init__(self):
-        self.import_dir = os.path.join(SCRIPT_DIR, "import")
         self.Parts = set()
 
         # Initialize list of parts of interest. To be populated depending on
@@ -332,12 +334,11 @@ class PartGroup(object):
         """Imports all part numbers stored in import/target_parts.txt.
         Format of target_parts file can be either [P/N] or [P/N]-[DESCRIPTION].
         """
-        target_filename = "target_parts.txt"
-        target_parts_path = os.path.join(self.import_dir, target_filename)
-        assert os.path.exists(target_parts_path), "Can't find %s" % target_filename
+        target_filename = os.path.basename(TARGET_PARTS_PATH)
+        assert os.path.exists(TARGET_PARTS_PATH), "Can't find %s" % target_filename
 
         print("\nImporting list of target parts from %s..." % target_filename)
-        with open(target_parts_path, "r") as target_file_it:
+        with open(TARGET_PARTS_PATH, "r") as target_file_it:
             lines = target_file_it.read().splitlines()
             # https://stackoverflow.com/questions/19062574/read-file-into-list-and-strip-newlines
             for i, target_part_line in enumerate(lines):
@@ -409,9 +410,9 @@ class PartGroup(object):
         self.report_Parts = set()
 
         if import_subdir:
-            import_dir = os.path.join(self.import_dir, import_subdir)
+            import_dir = os.path.join(IMPORT_DIR, import_subdir)
         else:
-            import_dir = self.import_dir
+            import_dir = IMPORT_DIR
 
         file_list = os.listdir(import_dir)
         file_list.sort()
@@ -427,6 +428,8 @@ class PartGroup(object):
             pass
 
         for file_name in file_list:
+            if os.path.isdir(os.path.join(import_dir, file_name)):
+                continue
             if not (file_name.startswith(self.report_type) and
                               os.path.splitext(file_name)[-1].lower()==".xlsx"):
                 # ignore files not matching expected report pattern
@@ -882,7 +885,7 @@ class PartGroup(object):
         specific parts set desired.
         """
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
-        export_path = os.path.join(SCRIPT_DIR, "export", "%s_%s_parts_set.csv"
+        export_path = os.path.join(EXPORT_DIR, "%s_%s_parts_set.csv"
                                   % (timestamp, self.get_pn_string(max_len=31)))
 
         if pn_set == None:
@@ -1092,7 +1095,7 @@ class TreeGraph(object):
             self.target_sub.add_node(Part_obj_node)
 
     def export_graph(self):
-        export_path_no_ext = os.path.join(SCRIPT_DIR, "export", "%s_%s_tree"
+        export_path_no_ext = os.path.join(EXPORT_DIR, "%s_%s_tree"
                      % (self.timestamp, self.PartsGr.get_pn_string(max_len=36)))
 
         export_img_path = "%s.%s" % (export_path_no_ext, "png")

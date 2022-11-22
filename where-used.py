@@ -22,8 +22,11 @@ parser.add_argument("-gp", "--printout", help="Specify that graph should be "
 parser.add_argument("-gc", "--compact", help="Specify that graph should be "
                 "created with compact nodes (part descriptions omitted). "
                 "Only valid in 'single' or 'multi' modes.", action="store_true")
-parser.add_argument("-e", "--exclude-obs", help="Exclude obsolete parts from "
-                        "multi-level where-used graph.", action="store_true")
+parser.add_argument("-t", "--target-part", help="Pass in single target part "
+                        "to use in place of target_parts.txt contents.",
+                                                        type=str, default=None)
+parser.add_argument("-e", "--exclude-obs", help="Exclude obsolete and orphaned "
+                "parts from multi-level where-used graph.", action="store_true")
 # https://www.programcreek.com/python/example/748/argparse.ArgumentParser
 args = parser.parse_args()
 
@@ -32,6 +35,14 @@ assert args.mode in ["single", "multi", "union", "platform", "platform_union",
                                         "assy_list", "union_loop", "bom_vis"]
 if args.exclude_obs:
     assert args.mode == "multi", "-e flag can only be used with multi mode."
+if args.target_part:
+    with open(class_def.TARGET_PARTS_PATH, "r") as target_parts_file:
+        # Display contents about to be overwritten.
+        print("Previous %s contents:" % os.path.basename(class_def.TARGET_PARTS_PATH))
+        print(target_parts_file.read())
+
+    with open(class_def.TARGET_PARTS_PATH, "w") as target_parts_file:
+        target_parts_file.write(args.target_part)
 
 AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
