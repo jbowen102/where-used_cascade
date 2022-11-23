@@ -943,10 +943,10 @@ class PartGroup(object):
                     try:
                         suffix_answer = input("> ")
                     except:
-                        pass
-                    finally:
                         print(colorama.Style.RESET_ALL)
                         quit()
+                    finally:
+                        print(colorama.Style.RESET_ALL)
                 if suffix_answer.lower() == "y":
                     pn_str_suffix = "_" + report_suffix
                 else:
