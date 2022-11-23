@@ -343,9 +343,11 @@ class TCReport(object):
         # Returns list of dfs. List should only have one df.
         assert len(import_dfs) == 1, "Irregular HTML table format found."
         self.import_df = import_dfs[0]
-        # Have to manually set dtype of Current ID col to string in case report
+        # Have to manually set dtype of some cols to string in case report
         # contains only numeric P/Ns.
         self.import_df["Current ID"] = self.import_df["Current ID"].astype(str)
+        # Also must z-fill single-digit exp revs if they've been represented as integers.
+        self.import_df["Current Revision"] = self.import_df["Current Revision"].astype(str).apply(lambda x: x.zfill(2) if x.isdecimal() else x)
 
         for col in COL_LIST:
             assert col in self.import_df.columns, ("Column '%s' not found in "
@@ -617,7 +619,8 @@ class TCReportGroup(object):
 
         timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
         export_path = os.path.join(self.report_dir,
-                        "%s_%s_processed_TC_report%s.xlsx" % (timestamp, self.base_pn, combined))
+                                        "%s_%s_processed_TC_report%s.xlsx" %
+                                        (timestamp, self.base_pn, combined))
 
         print("Writing combined data to %s..." % os.path.basename(export_path))
         with pd.ExcelWriter(export_path, engine="xlsxwriter") as writer:
