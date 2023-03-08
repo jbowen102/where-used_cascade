@@ -297,6 +297,9 @@ def parse_report_pn(report_name, base_only=False):
     # Report name format ex.:
     #   "2022-03-10_637381-GEOREP1--_TC_where-used.html"
     #   "2022-02-02_614575-A_TC_where-used.html"
+
+    if not report_name.endswith("TC_where-used.html"):
+        return False
     report_date = report_name.split("_")[0]
     if report_name.split("_")[1][-2:] == "--":
         report_rev = "-"
@@ -337,6 +340,8 @@ class TCReport(object):
         """
         # Extract report part number from file name
         self.report_pn = parse_report_pn(self.file_name)
+        assert self.report_pn != False, "TCReport.import_report() failed. \
+                      Filename not recognized as TC report: %s" % self.file_name
 
         print("Reading data from %s" % self.file_name)
         import_dfs = pd.read_html(self.file_path)
@@ -849,6 +854,26 @@ if __name__ == "__main__":
         assert os.path.isdir(path_str), "Not a valid directory path: %s" % args.dir
         if not args.pn:
             pn = None
+            # Read in all report P/Ns in the dir and see if only one P/N found.
+            dir_contents = os.listdir(path_str)
+            for item in dir_contents:
+                base_pn = parse_report_pn(os.path.join(path_str, item), base_only=True)
+                if base_pn == False:
+                    # Not a TC report. Skip
+                    continue
+
+                if pn is None:
+                    pn = base_pn
+                elif pn == base_pn:
+                    # Keep checking P/Ns
+                    continue
+                else:
+                    # Runs if pn was previously set, but now program sees a different P/N.
+                    pn = None
+                    break
+
+            # print("DEBUG: pn: %s" % pn)
+            # This runs only if above loop found more than one base P/N:
             while not pn:
                 print("Enter base part num:")
                 pn = input("> ")
