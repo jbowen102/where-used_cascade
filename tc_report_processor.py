@@ -262,7 +262,7 @@ def parse_rev_status(status_str):
                                                             flags=re.IGNORECASE)
 
     # "Obsolete"                            (red X)
-    obs_status = re.findall(r"^(obsolete)$", status_str, flags=re.IGNORECASE)
+    obs_status = re.findall(r"(obsolete)$", status_str, flags=re.IGNORECASE)
 
     if not status_str:
         # If empty string, then rev isn't statused at all.
