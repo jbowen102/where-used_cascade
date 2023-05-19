@@ -764,6 +764,7 @@ class PartGroup(object):
             assert ReportPart not in self.report_Parts, ("Found multiple "
                               "reports in import folder for %s:\n\t%s\n\t%s"
                % (ReportPart.get_pn(), ReportPart.get_report_name(), file_name))
+
         ReportPart.set_report_name(file_name)
         self.report_Parts.add(ReportPart)
 
@@ -940,13 +941,7 @@ class PartGroup(object):
                     print(colorama.Fore.GREEN + colorama.Style.BRIGHT +
                         "\nAppend report suffix '%s' to " "output filename? "
                                                         "[Y/N]" % report_suffix)
-                    try:
-                        suffix_answer = input("> ")
-                    except:
-                        print(colorama.Style.RESET_ALL)
-                        quit()
-                    finally:
-                        print(colorama.Style.RESET_ALL)
+                    suffix_answer = input("> " + colorama.Style.RESET_ALL)
                 if suffix_answer.lower() == "y":
                     pn_str_suffix = "_" + report_suffix
                 else:
@@ -971,8 +966,8 @@ class PartGroup(object):
 class TreeGraph(object):
     """Object that represents a tree graph for a set of parts, showing BOM
     structure and indicating obsolete status with color.
-    Graph doesn't generate correctly if run on PartGroup.target_Parts
-    aren't "leaves" of the tree (base parts; can't be mods and assys).
+    Graph doesn't generate correctly if PartGroup.target_Parts aren't "leaves"
+    of the tree (base parts; can't be mods and assys).
     """
     def __init__(self, PartsGr, target_group_only=False, printout=False,
                                         exclude_desc=False, exclude_obs=True):
@@ -1081,7 +1076,9 @@ class TreeGraph(object):
             outline_col = "black"
 
         if isinstance(Part_obj, Platform):
-            font_color = "green4"
+            # font_color = "green4"
+            # font_color = "#2d7bed"
+            font_color = "#4242ff"
         else:
             font_color = "black"
 
@@ -1103,11 +1100,15 @@ class TreeGraph(object):
         elif Part_obj in self.PartsGr.get_target_parts():
             self.target_sub.add_node(Part_obj_node)
 
-    def export_graph(self):
+    def export_graph(self, suffix=None):
         export_path_no_ext = os.path.join(EXPORT_DIR, "%s_%s_tree"
                      % (self.timestamp, self.PartsGr.get_pn_string(max_len=36)))
 
-        export_img_path = "%s.%s" % (export_path_no_ext, "png")
+        if suffix is not None:
+            suffix = "_%s" % suffix
+        else:
+            suffix = ""
+        export_img_path = "%s%s.%s" % (export_path_no_ext, suffix, "png")
         print("\nWriting graph to %s..." % os.path.basename(export_img_path))
         self.graph.write_png(export_img_path)
         print("...done")

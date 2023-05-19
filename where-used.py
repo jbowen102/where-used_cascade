@@ -65,8 +65,7 @@ elif args.mode.lower() == "multi":
     Exports graph showing where-used hierarchy along with can-obsolete coloring.
     """
     AllParts.import_all_reports(report_type="SAP_multi_w")
-    # AllParts.get_target_obs_status()
-    # AllParts.print_obs_status_trace()
+
     TreeViz = class_def.TreeGraph(AllParts, target_group_only=True,
                             printout=args.printout, exclude_desc=args.compact,
                                                 exclude_obs=args.exclude_obs)
