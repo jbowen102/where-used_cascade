@@ -7,6 +7,7 @@ import re
 import colorama
 
 import pandas as pd
+# import xlsxwriter # DEV   
 import numpy as np
 import pydot
 print("...done\n")
@@ -895,11 +896,17 @@ class PartGroup(object):
         else:
             parts_list = list(pn_set)
 
+        # DEV   
+        # Create new XLSX file and write out. # DEV   
+        # https://xlsxwriter.readthedocs.io/workbook.html # DEV   
+        # with xlsxwriter.Workbook(export_path) as workbook: # DEV   
+
         # Create new CSV file and write out.
         with open(export_path, 'w+') as output_file:
             output_file_csv = csv.writer(output_file, dialect="excel")
 
             print("\nWriting combined data to %s..." % os.path.basename(export_path))
+            # worksheet = workbook.add_worksheet() # DEV    
             for part in parts_list:
                 if platform_app:
                     platform_set = part.get_platform_refs()
