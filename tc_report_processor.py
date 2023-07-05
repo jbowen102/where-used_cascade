@@ -876,7 +876,7 @@ if __name__ == "__main__":
             # This runs only if above loop found more than one base P/N:
             while not pn:
                 print("Enter base part num:")
-                pn = input("> ")
+                pn = input("> ").upper()
         else:
             pn = args.pn
         ReportGroup = TCReportGroup(path_str)

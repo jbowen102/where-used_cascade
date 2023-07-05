@@ -42,7 +42,7 @@ if args.target_part:
         print(target_parts_file.read())
 
     with open(class_def.TARGET_PARTS_PATH, "w") as target_parts_file:
-        target_parts_file.write(args.target_part)
+        target_parts_file.write(args.target_part.upper())
 
 AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
