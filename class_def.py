@@ -40,6 +40,9 @@ class Part(object):
         # Initialize variable indicating where-used results are present
         self.report_name = None
 
+        # The part has appeared in reports in the context of these plants.
+        self.plants = set()
+
     def set_report_name(self, report_name):
         self.report_name = report_name
 
@@ -583,6 +586,9 @@ class PartGroup(object):
         # Check fields are in expected locations
         assert "Level" in import_data.columns, ("Expected "
                                         "'Level' in cell A1. "
+                                        "Check formatting in %s." % file_name)
+        assert "Plant" in import_data.columns, ("Expected "
+                                        "'Plant' in cell C1. "
                                         "Check formatting in %s." % file_name)
         assert "Object description" in import_data.columns, ("Expected "
                                         "'Object description' in cell D1. "
