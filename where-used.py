@@ -9,6 +9,13 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # https://stackoverflow.com/questions/29768937/return-the-file-path-of-the-file-not-the-current-directory
 
 
+def convert_win_path(path_str):
+    """Converts Windows path to Linux path."""
+    drive_letter = path_str[0]
+    return path_str.replace("\\", "/").replace("%s:" % drive_letter,
+                                            "/mnt/%s" % drive_letter.lower())
+
+
 parser = argparse.ArgumentParser(description="Program to automate recursive "
                                                         "where-used analyses")
 parser.add_argument("-v", "--verbose", help="Include additional output for "
@@ -32,7 +39,7 @@ args = parser.parse_args()
 
 assert args.mode, "Need to pass mode argument."
 assert args.mode in ["single", "multi", "union", "platform", "platform_union",
-                                        "assy_list", "union_loop", "bom_vis"]
+                       "assy_list", "union_loop", "bom_vis", "platform_compare"]
 if args.exclude_obs:
     assert args.mode == "multi", "-e flag can only be used with multi mode."
 if args.target_part:
@@ -172,3 +179,38 @@ elif args.mode.lower() == "bom_vis":
     TreeViz = class_def.TreeGraph(AllParts, target_group_only=False,
                             printout=args.printout, exclude_desc=args.compact)
     TreeViz.export_graph()
+
+elif args.mode.lower() == "platform_compare":
+    """Prompts user for two specific SAP multi-level BOMs to compare
+    Reads in target parts.
+    Exports graph showing BOM hierarchy along with can-obsolete coloring.
+    """
+
+    print("Enter paths to reports to compare:")
+    report1 = input("> ")[1:-1] # stripping surrounding quotes off pasted path.
+    report2 = input("> ")[1:-1]
+
+    # AllParts instantiated above conditional block.
+    AllParts.import_SAP_multi_BOM_report(convert_win_path(report1))
+
+    # AllParts.target_Parts = set()
+    AllParts2 = class_def.PartGroup()
+    AllParts2.import_platforms(platform_dict)
+
+    AllParts2.import_SAP_multi_BOM_report(convert_win_path(report2))
+    # AllParts.import_SAP_multi_BOM_report(convert_win_path(report2), allow_dup=True)
+
+    # AllParts.import_target_parts(parts_update=False)
+    # ObsParts = AllParts.get_target_parts()
+    # print(NewParts.intersection(ObsParts))
+
+    Groups = [ AllParts - AllParts2, AllParts2 - AllParts ]
+
+    for n, Group in enumerate(Groups):
+        TreeViz = class_def.TreeGraph(PartsGr=Group,
+                            printout=args.printout, exclude_desc=args.compact,
+                                                exclude_obs=args.exclude_obs)
+        TreeViz.export_graph(suffix="Group%dof%d" % (n+1, len(Groups)))
+        Group.export_parts_set()
+
+    # YIELDING IDENTICAL PART SETS CURRENTLY    #DEV    

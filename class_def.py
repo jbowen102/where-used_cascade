@@ -1,6 +1,7 @@
 print("Importing modules...")
 import os
 import csv
+import copy
 from datetime import datetime
 import getpass
 import re
@@ -238,17 +239,36 @@ class PartGroup(object):
     def add_part(self, Part_i):
         self.Parts.add(Part_i)
 
+    def remove_parts(self, parts_to_remove):
+        """Modifies PartsGroup in place.
+        """
+        # parts_to_remove contains objects distinct from ones imported
+        # Can't pool parts and share because parent/child connections can be different.
+        # Need to retrieve objects from this PartsGroup that correspond to P/Ns
+        # in parts_to_remove.
+        for ForeignPart_i in parts_to_remove:
+            Part_i = self.get_part(ForeignPart_i.get_pn())
+            if Part_i:
+                self.Parts.remove(Part_i)
+        self.Parts.difference_update(parts_to_remove)
+
     def get_part(self, part_num):
         for Part_i in self.Parts:
             if part_num == Part_i.get_pn():
                 return Part_i
         return False # only happens if no match found in loop.
 
-    def get_parts(self, omit_platforms=False):
+    def get_parts(self, omit_platforms=False, omit_parts=None):
+        """omit_parts is a set of Parts objects (not a PartsGroup).
+        """
+        if not omit_parts:
+            omit_parts = set()
+
+        # If any parts in omit_parts don't exist in this PartsGroup, no error thrown.
         if omit_platforms:
-            return self.Parts - self.get_platforms()
+            return self.Parts - self.get_platforms() - omit_parts
         else:
-            return self.Parts
+            return self.Parts - omit_parts
 
     def get_target_parts(self):
         return self.target_Parts
@@ -717,7 +737,8 @@ class PartGroup(object):
         # print("Target parts: %r" % self.target_Parts) # DEBUG
 
 
-    def import_SAP_multi_BOM_report(self, import_path, verbose=False):
+    def import_SAP_multi_BOM_report(self, import_path, verbose=False,
+                                                               allow_dup=False):
         """Read in a multi-level BOM exported from SAP CS12.
         Create Parts objects and link parts based on BOM hierarchy.
         """
@@ -757,6 +778,9 @@ class PartGroup(object):
             if verbose:
                 print("\tAdding %s to group (report part)" % ReportPart)
             self.add_part(ReportPart)
+        elif allow_dup:
+            # Don't flag import w/ same report P/N.
+            ReportPart = Part(part_num)
         else:
             if verbose:
                 print("\tPart   %s already in group (report part)" % part_num)
@@ -962,6 +986,18 @@ class PartGroup(object):
     def __repr__(self):
         return "PartsGroup object: %s" % str(self.Parts)
 
+    def __sub__(self, OtherGroup):
+        # Create a copy of the current PartsGroup
+        # Subtract the OtherGroup's parts, but keep this PartsGroup's target_parts
+        # and report_parts even if they exist in OtherGroup.
+        NewPartsGroup = copy.deepcopy(self)
+        # NewPartsGroup.remove_parts(OtherGroup.get_parts(omit_platforms=True,
+        NewPartsGroup.remove_parts(OtherGroup.get_parts(
+                        omit_parts=self.target_Parts.union(self.report_Parts)))
+
+        # PROBABLY CAN'T OMIT PARTS RIGHT BECAUSE THEY'RE NOT SAME OBJECTS INSTANTIATED IN OTHER PARTSGROUP     #DEV        
+
+        return NewPartsGroup
 
 class TreeGraph(object):
     """Object that represents a tree graph for a set of parts, showing BOM
