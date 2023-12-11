@@ -18,6 +18,7 @@ EXPORT_DIR = os.path.join(SCRIPT_DIR, "export")
 TARGET_PARTS_PATH = os.path.join(IMPORT_DIR, "target_parts.txt")
 # https://stackoverflow.com/questions/29768937/return-the-file-path-of-the-file-not-the-current-directory
 
+
 class Part(object):
     """Object to represent a part, assy, or mod, to be used in building BOM
     structure among other Parts.
@@ -741,9 +742,6 @@ class PartGroup(object):
             raise Exception("Can't find P/N in filename: %s" % file_name)
 
         # Check fields are in expected locations
-        assert "Explosion level" in import_data.columns, ("Expected "
-                                        "'Explosion level' in cell B1. "
-                                        "Check formatting in %s." % file_name)
         assert "Component number" in import_data.columns, ("Expected "
                                         "'Component number' in cell D1. "
                                         "Check formatting in %s." % file_name)
@@ -785,7 +783,12 @@ class PartGroup(object):
             if len(part_num) < 6 and part_num.startswith("CU"):
                 # Skip "custom options"
                 continue
-            current_level = int(import_data["Explosion level"][i].split(".")[-1])
+
+            if "Explosion level" in import_data.columns:
+                current_level = int(import_data["Explosion level"][i].split(".")[-1])
+            elif "Level" in import_data.columns:
+                current_level = int(import_data["Level"][i].split(".")[-1])
+
             if verbose:
                 print("level: %d" % current_level)
 
