@@ -123,30 +123,32 @@ def extract_revs(pn, object_str):
     # 652149G01-GEOREP02---MAT,FLOOR,LWB,DMND,W/HORN HOLES
     # 652149G01-GEOREP02-C-OBS-MAT,FLOOR,LWB,DMND,W/HORN HOLES
     # 677645-B-CHART-FLOOR MAT-XLWB
+    # 10017652-01-10017652-BATTERY PACK UPRIGHT 6 MODULES  # P/N- in description tripped parser
     #
     # GSE specialness:
     # 739666/A-BATTERY,6CM,SAMSUNG SDI,660E-ASSY
 
-    object_list = object_str.split(pn + "-") # standard case
-    if len(object_list) == 1:
-        # Could be a GSE item - slash-delimited instead of dash-delimited
-        # match_str = r"^([\w]{4,8}\/[\da-z.]*)(?=-)"
-        object_list = object_str.split(pn + "/")
-    if len(object_list) == 1:
-        # If still empty, don't know how to handle it.
-        raise Exception("extract_revs() failed on pn '%s', object_str: '%s'" % (pn, object_str))
+    # Split off P/N from beginning of string
+    assert object_str.startswith(pn), "extract_revs() doesn't know how to handle object_str %s \
+                                that doesn't start w/ pn %s" % (object_str, pn)
+    obj_str_trimmed = object_str[len(pn):]
+    # Separate individual list items in rest of string. Make sure base case of one item still works.
+    object_list = obj_str_trimmed.split(", %s" % pn)
+
+    for obj in object_list:
+        assert obj[0] in ("-", "/"), "extract_revs() found nonstandard delimiter \
+                                                    in obj_list for pn %s" % pn
 
     rev_list = []
     for object in object_list:
         if object.startswith("--"):
             rev = "-"
         else:
-            # Standard case requires splitting off dash and name.
-            # If part has no name, this leaves a ", " at end of each rev, so
-            # split that off. Has no effect on standard parts.
-            rev = object.split("-")[0].split(", ")[0]
+            # Strip off leading delimiter and split off description.
+            rev = object[1:].split("-")[0]
+            # input("%s ->\t%s" % (object, rev)) # DEBUG
         rev_list.append(rev)
-    return rev_list[1:] # First item in list is ''
+    return rev_list
 
 
 def rank_rev(letter_rev):
