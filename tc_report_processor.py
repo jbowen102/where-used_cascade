@@ -123,7 +123,19 @@ def extract_revs(pn, object_str):
     # 652149G01-GEOREP02---MAT,FLOOR,LWB,DMND,W/HORN HOLES
     # 652149G01-GEOREP02-C-OBS-MAT,FLOOR,LWB,DMND,W/HORN HOLES
     # 677645-B-CHART-FLOOR MAT-XLWB
-    object_list = object_str.split(pn + "-")
+    #
+    # GSE specialness:
+    # 739666/A-BATTERY,6CM,SAMSUNG SDI,660E-ASSY
+
+    object_list = object_str.split(pn + "-") # standard case
+    if len(object_list) == 1:
+        # Could be a GSE item - slash-delimited instead of dash-delimited
+        # match_str = r"^([\w]{4,8}\/[\da-z.]*)(?=-)"
+        object_list = object_str.split(pn + "/")
+    if len(object_list) == 1:
+        # If still empty, don't know how to handle it.
+        raise Exception("extract_revs() failed on pn '%s', object_str: '%s'" % (pn, object_str))
+
     rev_list = []
     for object in object_list:
         if object.startswith("--"):
