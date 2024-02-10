@@ -276,7 +276,7 @@ class PartGroup(object):
             missing_target_parts = self.target_Parts - self.target_Parts.intersection(self.Parts)
             print("\n%d of %d target parts not found in report(s):" %
                         (len(missing_target_parts), len(self.target_Parts)))
-            for pn in missing_target_parts:
+            for pn in sorted(missing_target_parts):
                 print("\t%s" % pn)
             print("\n%d of %d target parts not found in report(s). Continue "
                 "anyway (missing target parts will be omitted from export)? [Y/N]"
