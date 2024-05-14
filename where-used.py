@@ -14,8 +14,9 @@ parser = argparse.ArgumentParser(description="Program to automate recursive "
 parser.add_argument("-v", "--verbose", help="Include additional output for "
                                             "diagnosis.", action="store_true")
 parser.add_argument("-m", "--mode", help="Specify which mode to run program in "
-                    "('single', 'multi', 'union', 'platform'). 'union' and "
-        "'platform' types use SAP multi-level BOM(s)", type=str, default=None)
+                    "('single', 'multi', 'union', 'union_diff', 'platform'). "
+                    "'union' and 'platform' types use SAP multi-level BOM(s)",
+                                                        type=str, default=None)
 parser.add_argument("-gp", "--printout", help="Specify that graph should be "
                 "created in printout mode (sparse color). "
                 "Only valid in 'single' or 'multi' modes.", action="store_true")
@@ -31,8 +32,8 @@ parser.add_argument("-e", "--exclude-obs", help="Exclude obsolete and orphaned "
 args = parser.parse_args()
 
 assert args.mode, "Need to pass mode argument."
-assert args.mode in ["single", "multi", "union", "platform", "platform_union",
-                                        "assy_list", "union_loop", "bom_vis"]
+assert args.mode in ["single", "multi", "union", "union_diff", "platform",
+                        "platform_union", "assy_list", "union_loop", "bom_vis"]
 if args.exclude_obs:
     assert args.mode == "multi", "-e flag can only be used with multi mode."
 if args.target_part:
@@ -82,15 +83,41 @@ elif args.mode.lower() == "union":
 
     #### TEMP - used to see if mods/parts being used on new platforms include
     ####        any parts I'm obsoleting
-    # NewParts = AllParts.get_union_bom() # new stuff in target_parts.txt
+    # new_parts = AllParts.get_union_bom() # new stuff in target_parts.txt
     # AllParts.target_Parts = set()
     # input("\n\nReplace target parts") # put parts planning to obs in target_parts.txt
     # AllParts.import_target_parts(parts_update=False)
-    # ObsParts = AllParts.get_target_parts()
-    # print(NewParts.intersection(ObsParts))
+    # obs_parts = AllParts.get_target_parts()
+    # print(new_parts.intersection(obs_parts))
     #### TEMP
-
     AllParts.export_parts_set(pn_set=AllParts.get_union_bom(), omit_platforms=True)
+
+elif args.mode.lower() == "union_diff":
+    """Reads in SAP multi-level BOM(s), reads in target parts.
+    Creates union of target parts and every part used in any level below the
+    target parts.
+    Then prompts user to replace target parts.
+    Creates union of new target parts and every part used in any level below them.
+    Subtracts this second union set from first union set to show all parts in
+    first union set that don't also exist in second union set.
+    Exports this difference list.
+    Program will report any target parts not found in multi-BOMs (and thus not
+    expanded).
+    """
+    AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    # Takes list of mods/parts in target parts unioned BOM and subtract all unioned
+    # parts/mods from another list.
+    # Can use to isolate unique parts for an F/A within a platform
+    # Paste all mods one F/A uses into target parts first.
+    # Then when prompted, replace w/ mods used by other F/A(s) on the platform.
+    # Will isolate mods and parts used only on the first F/A.
+
+    main_Parts = AllParts.get_union_bom()
+    AllParts.target_Parts = set() # Clear target parts set.
+
+    input("\n\nReplace target parts")
+    subtract_Parts = AllParts.get_union_bom() # re-imports target parts. Returns a set.
+    AllParts.export_parts_set(pn_set=main_Parts.difference(subtract_Parts), omit_platforms=True)
 
 elif args.mode.lower() == "platform":
     """Reads in SAP multi-level BOM(s), reads in target parts.
