@@ -255,22 +255,22 @@ def parse_rev_status(status_str):
     # "Alpha,Approved"                      (green flag)
     # "Beta,Approved"                       (green flag)
     # "Gamma,Approved"                      (green flag)
-    exp_status = re.findall(r"^(concept|baseline|alpha|beta|gamma)", status_str,
+    exp_status = re.findall(r"(concept|baseline|alpha|beta|gamma)$", status_str,
                                                             flags=re.IGNORECASE)
-    grn_status = re.findall(r"^(concept|alpha|beta|gamma),approved$", status_str,
+    grn_status = re.findall(r"(concept|alpha|beta|gamma),approved$", status_str,
                                                             flags=re.IGNORECASE)
 
     # "Engineering Released"                (yellow flag)
-    yel_status = re.findall(r"^(engineering released)$", status_str,
+    yel_status = re.findall(r"(engineering.released)$", status_str,
                                                             flags=re.IGNORECASE)
     # "Engineering Released -Superseded"    (yellow flag - strikethrough)
-    sup_status = re.findall(r"(superseded)$", status_str, flags=re.IGNORECASE)
+    sup_status = re.findall(r"(-superseded)$", status_str, flags=re.IGNORECASE)
 
     # "Engineering Released,Released"       (checkered flag)
     # "Released"                            (checkered flag)
     # "Engineering Released,Redline Release"(red checkered flag)
     # "Redline Release"                     (red checkered flag) - not sure this exists
-    checkd_status = re.findall(r"((?<!engineering )released)$", status_str,
+    checkd_status = re.findall(r"((?<!engineering.)released)$", status_str,
                                                             flags=re.IGNORECASE)
     rcheckd_status = re.findall(r"(redline release)$", status_str,
                                                             flags=re.IGNORECASE)
@@ -296,7 +296,7 @@ def parse_rev_status(status_str):
     elif len(obs_status) == 1:
         return "obsolete"
     else:
-        raise Exception("No valid status found: %s" % status_str)
+        raise Exception("No valid status found in '%s'" % status_str)
 
 def convert_date(date_str):
     if date_str:
