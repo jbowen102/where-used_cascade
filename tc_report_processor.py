@@ -260,6 +260,8 @@ def parse_rev_status(status_str):
                                                             flags=re.IGNORECASE)
     grn_status = re.findall(r"(concept|alpha|beta|gamma),approved$", status_str,
                                                             flags=re.IGNORECASE)
+    purple_status = re.findall(r"(preliminary)$", status_str,
+                                                            flags=re.IGNORECASE)
 
     canc_status = re.findall(r"(concept cancelled)$", status_str,
                                                             flags=re.IGNORECASE)
@@ -279,16 +281,21 @@ def parse_rev_status(status_str):
     rcheckd_status = re.findall(r"(redline release)$", status_str,
                                                             flags=re.IGNORECASE)
 
+    ppap_status = re.findall(r"(ppap_release)$", status_str,
+                                                            flags=re.IGNORECASE)
+
     # "Obsolete"                            (red X)
     obs_status = re.findall(r"(obsolete)$", status_str, flags=re.IGNORECASE)
 
     if sum(len(exp_status),
            len(grn_status),
+           len(purple_status),
            len(canc_status),
            len(yel_status),
            len(sup_status),
            len(checkd_status),
            len(rcheckd_status),
+           len(ppap_status),
            len(obs_status)) > 1:
         raise Exception("More than one status match found: %s" % status_str)
 
@@ -301,6 +308,8 @@ def parse_rev_status(status_str):
         return "canc_status"
     elif len(grn_status) == 1:
         return "green_flag"
+    elif len(purple_status) == 1:
+        return "purple_flag"
     elif len(yel_status) == 1:
         return "yellow_flag"
     elif len(sup_status) == 1:
@@ -309,6 +318,8 @@ def parse_rev_status(status_str):
         return "checkered_flag"
     elif len(rcheckd_status) == 1:
         return "red_checkered_flag"
+    elif len(ppap_status) == 1:
+        return "checkered_flag_other"
     elif len(obs_status) == 1:
         return "obsolete"
     else:
