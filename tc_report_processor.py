@@ -246,6 +246,7 @@ def two_rev_diff(rev, newer_rev):
 
 def parse_rev_status(status_str):
     # "Concept"                             (check mark)
+    # "Concept Cancelled"                   (check mark w/ red slash) - deployed 2024-01-30. Developed in 2023-11-16 meeting.
     # "Baseline"                            (check mark)
     # "Alpha"                               (check mark)
     # "Beta"                                (check mark)
@@ -258,6 +259,9 @@ def parse_rev_status(status_str):
     exp_status = re.findall(r"(concept|baseline|alpha|beta|gamma)$", status_str,
                                                             flags=re.IGNORECASE)
     grn_status = re.findall(r"(concept|alpha|beta|gamma),approved$", status_str,
+                                                            flags=re.IGNORECASE)
+
+    canc_status = re.findall(r"(concept cancelled)$", status_str,
                                                             flags=re.IGNORECASE)
 
     # "Engineering Released"                (yellow flag)
@@ -278,11 +282,23 @@ def parse_rev_status(status_str):
     # "Obsolete"                            (red X)
     obs_status = re.findall(r"(obsolete)$", status_str, flags=re.IGNORECASE)
 
+    if sum(len(exp_status),
+           len(grn_status),
+           len(canc_status),
+           len(yel_status),
+           len(sup_status),
+           len(checkd_status),
+           len(rcheckd_status),
+           len(obs_status)) > 1:
+        raise Exception("More than one status match found: %s" % status_str)
+
     if not status_str:
         # If empty string, then rev isn't statused at all.
         return "unstatused"
     elif len(exp_status) == 1:
         return "exp_statused"
+    elif len(canc_status) == 1:
+        return "canc_status"
     elif len(grn_status) == 1:
         return "green_flag"
     elif len(yel_status) == 1:
