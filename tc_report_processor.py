@@ -7,6 +7,7 @@ import argparse     # Used to parse optional command-line arguments
 import re
 import string
 import colorama
+from tabulate import tabulate
 
 import pandas as pd
 import numpy as np
@@ -382,6 +383,17 @@ class TCReport(object):
             % (self.report_pn, lev_0_result)
         print("...done\n")
 
+    def return_release_statuses(self, status_dict):
+        for n, status_str in enumerate(self.import_df["Release Status"].fillna("")):
+            if status_str == "":
+                continue
+            elif status_dict.get(status_str):
+                continue
+            else:
+                status_dict[status_str] = ("%s-%s" % (self.import_df["Current ID"][n],
+                                                self.import_df["Current Revision"][n]),
+                                                                self.file_name)
+
     def reformat_dataframe(self, verbose=False):
         """Reformat single-level where-used report data and separate out
         superfluous results. Put primary columns of interest at left, renamed.
@@ -423,6 +435,7 @@ class TCReport(object):
 
         # Create new column w/ status of this P/N-rev combo.
         # Blank status fields will be nan, so replace these w/ empty strings first.
+        # print(base_df[["Current ID", "Current Revision", "Name", "Release Status"]]) # DEBUG
         base_df["Rev Status [DEBUG]"] = base_df["Release Status"].fillna("").apply(parse_rev_status)
 
         base_df["Last Mod Date"] = base_df["Date Modified"].fillna("").apply(convert_date)
@@ -574,7 +587,7 @@ class TCReportGroup(object):
         """Pass either P/N or specific report path, but not both.
         Searches self.report_dir for reports associated w/ given base P/N.
         """
-        assert not (pn and single_report_path), "find_reports() accepts " \
+        assert pn != single_report_path, "find_reports() requires " \
                             "either P/N or specific report path, but not both."
         self.report_set = set()
 
@@ -855,7 +868,40 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--pn", help="Specify part num that reports in "
            "dir (specified w/ --dir option) pertain to", type=str, default=None)
     # https://www.programcreek.com/python/example/748/argparse.ArgumentParser
+
+    parser.add_argument("-db", "--dirbatch", help="directory batch - ingest multiple report "
+                        "to collect status strings only", type=str, default=None)
     args = parser.parse_args()
+    if args.dirbatch:
+        statuses_dict = {}
+        path_str = convert_win_path(args.dirbatch)
+
+        # Read in all report P/Ns in the dir.
+        dir_contents = os.listdir(path_str)
+        for item in dir_contents:
+            pn = parse_report_pn(os.path.join(path_str, item), base_only=False)
+            if pn == False:
+                # Not a TC report.
+                continue
+
+            ThisReport = TCReport(os.path.join(path_str, item))
+
+            try:
+                ThisReport.import_report()
+            except AssertionError:
+                print("\tFailed")
+                continue
+            except KeyError:
+                print("\tFailed")
+                continue
+
+            ThisReport.return_release_statuses(statuses_dict)
+
+        print(tabulate([[key, statuses_dict[key][0], statuses_dict[key][1]]
+                                            for key in sorted(statuses_dict)],
+                                            headers=["Status", "P/N-Rev", "File"]))
+
+        quit()
 
     if args.file:
         path_str = convert_win_path(args.file)
