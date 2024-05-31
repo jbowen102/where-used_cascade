@@ -6,6 +6,18 @@ import tc_report_processor as tcr_proc
 
 
 
+def gather_htmls(from_dir, to_dir):
+    """Copies all html files found in dir tree (from_dir) into to_dir directory.
+    If paths in Win format, need to pass as raw strings."""
+    from_dir = tcr_proc.convert_win_path(from_dir)
+    to_dir = tcr_proc.convert_win_path(to_dir)
+
+    for dirpath, dirnames, filenames in os.walk(from_dir):
+        for filename in filenames:
+            if filename.endswith("html"):
+                shutil.copy2(os.path.join(dirpath, filename), to_dir)
+
+
 def extract_release_statuses(Report, stat_dict=None):
     """Takes in tcr_proc.TCReport object and extracts all release statuses.
     Optional dict argument allows statuses to be added to an existing status
