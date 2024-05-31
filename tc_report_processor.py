@@ -289,7 +289,7 @@ def parse_rev_status(status_str):
         return "yellow_flag"
     elif len(sup_status) == 1:
         return "superseded_yellow"
-    elif len(checkd_status) == 1 or len(rcheckd_status) == 1:
+    elif len(checkd_status) == 1:
         return "checkered_flag"
     elif len(rcheckd_status) == 1:
         return "red_checkered_flag"
