@@ -258,7 +258,7 @@ def parse_rev_status(status_str):
     # "Gamma,Approved"                      (green flag)
     exp_status = re.findall(r"(concept|baseline|alpha|beta|gamma)$", status_str,
                                                             flags=re.IGNORECASE)
-    grn_status = re.findall(r"(concept|alpha|beta|gamma),approved$", status_str,
+    grn_status = re.findall(r"(,approved)$", status_str,
                                                             flags=re.IGNORECASE)
     purple_status = re.findall(r"(preliminary)$", status_str,
                                                             flags=re.IGNORECASE)
@@ -266,8 +266,11 @@ def parse_rev_status(status_str):
     canc_status = re.findall(r"(concept cancelled)$", status_str,
                                                             flags=re.IGNORECASE)
 
+    turf_checkd = re.findall(r"(engineering_released|ppap_release|engrework|quarantined)$", status_str,
+                                                            flags=re.IGNORECASE)
+
     # "Engineering Released"                (yellow flag)
-    yel_status = re.findall(r"(engineering.released)$", status_str,
+    yel_status = re.findall(r"(engineering released)$", status_str,
                                                             flags=re.IGNORECASE)
     # "Engineering Released -Superseded"    (yellow flag - strikethrough)
     sup_status = re.findall(r"(-superseded)$", status_str, flags=re.IGNORECASE)
@@ -281,22 +284,24 @@ def parse_rev_status(status_str):
     rcheckd_status = re.findall(r"(redline release)$", status_str,
                                                             flags=re.IGNORECASE)
 
-    ppap_status = re.findall(r"(ppap_release)$", status_str,
-                                                            flags=re.IGNORECASE)
+
+    # "Overtaken"                            (checkered flag w/ red dash sign)
+    ovtkn_status = re.findall(r"(overtaken)$", status_str, flags=re.IGNORECASE)
 
     # "Obsolete"                            (red X)
     obs_status = re.findall(r"(obsolete)$", status_str, flags=re.IGNORECASE)
 
-    if sum(len(exp_status),
+    if sum([len(exp_status),
            len(grn_status),
            len(purple_status),
            len(canc_status),
+           len(turf_checkd),
            len(yel_status),
            len(sup_status),
            len(checkd_status),
            len(rcheckd_status),
-           len(ppap_status),
-           len(obs_status)) > 1:
+           len(ovtkn_status),
+           len(obs_status)]) > 1:
         raise Exception("More than one status match found: %s" % status_str)
 
     if not status_str:
@@ -310,6 +315,8 @@ def parse_rev_status(status_str):
         return "green_flag"
     elif len(purple_status) == 1:
         return "purple_flag"
+    elif len(turf_checkd) == 1:
+        return "checkered_flag_other"
     elif len(yel_status) == 1:
         return "yellow_flag"
     elif len(sup_status) == 1:
@@ -318,8 +325,8 @@ def parse_rev_status(status_str):
         return "checkered_flag"
     elif len(rcheckd_status) == 1:
         return "red_checkered_flag"
-    elif len(ppap_status) == 1:
-        return "checkered_flag_other"
+    elif len(ovtkn_status) == 1:
+        return "overtaken"
     elif len(obs_status) == 1:
         return "obsolete"
     else:

@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.dir:
-        path_str = convert_win_path(args.dir)
+        path_str = tcr_proc.convert_win_path(args.dir)
         collect_statuses(path_str)
 
     else:
