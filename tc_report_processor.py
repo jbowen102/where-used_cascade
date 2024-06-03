@@ -266,7 +266,7 @@ def parse_rev_status(status_str):
     canc_status = re.findall(r"(concept cancelled)$", status_str,
                                                             flags=re.IGNORECASE)
 
-    turf_checkd = re.findall(r"(engineering_released|ppap_release|engrework|quarantined)$", status_str,
+    turf_checkd = re.findall(r"(engineering_released|ppap_release|engrework|quarantined|obsoleted|voided)$", status_str,
                                                             flags=re.IGNORECASE)
 
     # "Engineering Released"                (yellow flag)
