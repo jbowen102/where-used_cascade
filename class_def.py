@@ -393,15 +393,21 @@ class PartGroup(object):
         find_missing should only be specified the first time method is called.
         """
         if report_type:
-            assert report_type in ["SAPTC", "SAP_multi_w", "SAP_multi_BOM"], (
-                "The only recognized report types are 'SAPTC', 'SAP_multi_w', "
-                                                        "and 'SAP_multi_BOM'.")
+            assert report_type in ["SAPTC", "SAP_multi_w", "SAP_multi_BOM",
+                "SAP_multi_BOM_text"], ("The only recognized report types are "
+                                    "'SAPTC', 'SAP_multi_w', 'SAP_multi_BOM', "
+                                                    "and 'SAP_multi_BOM_text'.")
         # Initialize list of primary parts that reports pertain to.
         if report_type and self.report_type:
             raise Exception("Can't pass another report type once variable set.")
         elif report_type:
             # Should only apply first time method called.
             self.report_type = report_type
+            if report_type == "SAP_multi_BOM_text":
+                # Confirm eff. date w/ user for remote CS11 export use
+                self.present_remote_export_date()
+                # Put here because I only want it to run once.
+
         elif self.report_type:
             # If method's already been called once w/ report type set, continue
             # using that type.
@@ -413,6 +419,8 @@ class PartGroup(object):
 
         if import_subdir:
             import_dir = os.path.join(IMPORT_DIR, import_subdir)
+        elif self.report_type == "SAP_multi_BOM_text":
+            import_dir = IMPORT_DIR_REMOTE
         else:
             import_dir = IMPORT_DIR
 
@@ -422,7 +430,7 @@ class PartGroup(object):
         if self.report_type in ["SAPTC", "SAP_multi_w"]:
             self.import_target_parts()
             assert len(self.target_Parts) >= 1, "No target parts identified."
-        elif self.report_type == "SAP_multi_BOM":
+        elif self.report_type.startswith("SAP_multi_BOM"):
             # Don't import target_Parts; not applicable when using SAP_multi_BOM
             # report type for standard case.
             # For case of creating union_bom, import_target_parts() called in
@@ -444,6 +452,9 @@ class PartGroup(object):
                 find_missing = False
             elif self.report_type == "SAP_multi_BOM":
                 self.import_SAP_multi_BOM_report(import_path)
+                find_missing = False
+            elif self.report_type == "SAP_multi_BOM_text":
+                self.import_SAP_multi_BOM_text_report(os.path.join(import_path, "Text_Files"))
                 find_missing = False
 
         if not self.report_Parts:
@@ -844,6 +855,20 @@ class PartGroup(object):
         print("Target parts: %r" % self.target_Parts) # DEBUG
 
 
+    def import_SAP_multi_BOM_text_report(self, import_path, verbose=False):
+        """Read in a multi-level BOM exported from SAP CS12.
+        process runner (using CS11 "Level-by-Level" BOM explosion).
+        """
+        file_name = os.path.basename(import_path)
+
+        # Only report filenames of a specific naming convention
+        filename_regex = r"^(\d{6}|\d{8})_\d{2}.txt$"
+        matches = re.findall(filename_regex, file_name)
+        if not len(matches) == 1:
+            # ignore files not matching expected report pattern
+            print("Unrecognized report-name format (skipping): %s\n" % file_name)
+            return
+
     def find_missing_reports(self):
         """Used when importing individual where-used reports to find what reports are
         needed but not contained in import folder.
@@ -882,6 +907,9 @@ class PartGroup(object):
             else:
                 break
 
+
+    def present_remote_export_date(self):
+        pass
 
     def export_parts_set(self, pn_set=None, omit_platforms=False,
                                                             platform_app=False):
@@ -961,6 +989,7 @@ class PartGroup(object):
                                                     "+", maxsplit=1)[0] + "...")
 
         return "%s%s" % (pn_str, pn_str_suffix)
+
 
     def __repr__(self):
         return "PartsGroup object: %s" % str(self.Parts)

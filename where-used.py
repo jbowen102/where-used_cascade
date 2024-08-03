@@ -80,6 +80,7 @@ elif args.mode.lower() == "union":
     expanded).
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
 
     #### TEMP - used to see if mods/parts being used on new platforms include
     ####        any parts I'm obsoleting
@@ -105,6 +106,7 @@ elif args.mode.lower() == "union_diff":
     expanded).
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
     # Takes list of mods/parts in target parts unioned BOM and subtract all unioned
     # parts/mods from another list.
     # Can use to isolate unique parts for an F/A within a platform
@@ -128,6 +130,7 @@ elif args.mode.lower() == "platform":
     Non-platform multi-BOMs in import folder are ignored.
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
     AllParts.import_target_parts()
 
     AllParts.export_parts_set(pn_set=AllParts.get_target_parts(),
@@ -148,6 +151,7 @@ elif args.mode.lower() == "platform_union":
     expanded).
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
 
     # Export union bom w/ platform applications:
     AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
@@ -175,6 +179,7 @@ elif args.mode.lower() == "union_loop":
     target part.
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
 
     while True:
         print("\nEnter P/N")
@@ -194,6 +199,7 @@ elif args.mode.lower() == "bom_vis":
     the graph.
     """
     AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
     # AllParts.import_target_parts()
 
     TreeViz = class_def.TreeGraph(AllParts, target_group_only=False,
