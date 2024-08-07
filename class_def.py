@@ -14,6 +14,7 @@ print("...done\n")
 # dir path where this script is stored
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IMPORT_DIR = os.path.join(SCRIPT_DIR, "import")
+IMPORT_DIR_REMOTE = os.path.join(SCRIPT_DIR, "import_remote")
 EXPORT_DIR = os.path.join(SCRIPT_DIR, "export")
 TARGET_PARTS_PATH = os.path.join(IMPORT_DIR, "target_parts.txt")
 # https://stackoverflow.com/questions/29768937/return-the-file-path-of-the-file-not-the-current-directory
@@ -59,8 +60,11 @@ class Part(object):
             report_prefix = "SAPTC_BOM_Report_"
         elif "SAP_multi_BOM" in self.report_name:
             report_prefix = "SAP_multi_BOM_"
+        elif self.report_name.endswith(".txt"):
+            return None # Never expect a suffix in network-drive exports.
         else:
-            raise Exception("Report prefix doesn't match any recognized format.")
+            raise Exception("Report prefix in report_name %s doesn't match any "\
+                                        "recognized format." % self.report_name)
 
         suffix_regex = r"(?<=" + self.part_num + r"_)[\w\-]+(?=.XLSX$)"
         suffix_matches = re.findall(suffix_regex, self.report_name, flags=re.IGNORECASE)
@@ -420,7 +424,7 @@ class PartGroup(object):
         if import_subdir:
             import_dir = os.path.join(IMPORT_DIR, import_subdir)
         elif self.report_type == "SAP_multi_BOM_text":
-            import_dir = IMPORT_DIR_REMOTE
+            import_dir = os.path.join(IMPORT_DIR_REMOTE, "Text_Files")
         else:
             import_dir = IMPORT_DIR
 
@@ -440,11 +444,8 @@ class PartGroup(object):
         for file_name in file_list:
             if os.path.isdir(os.path.join(import_dir, file_name)):
                 continue
-            if not (file_name.startswith(self.report_type) and
-                              os.path.splitext(file_name)[-1].lower()==".xlsx"):
-                # ignore files not matching expected report pattern
-                continue
             import_path = os.path.join(import_dir, file_name)
+
             if self.report_type == "SAPTC":
                 self.import_SAPTC_report(import_path)
             elif self.report_type == "SAP_multi_w":
@@ -454,7 +455,7 @@ class PartGroup(object):
                 self.import_SAP_multi_BOM_report(import_path)
                 find_missing = False
             elif self.report_type == "SAP_multi_BOM_text":
-                self.import_SAP_multi_BOM_text_report(os.path.join(import_path, "Text_Files"))
+                self.import_SAP_multi_BOM_text_report(import_path)
                 find_missing = False
 
         if not self.report_Parts:
@@ -475,6 +476,14 @@ class PartGroup(object):
         SAP plugin. Create Parts objects and link parts based on BOM hierarchy.
         """
         file_name = os.path.basename(import_path)
+
+        report_prefix = "SAPTC"
+        if not (file_name.startswith(report_prefix)
+                        and os.path.splitext(file_name)[-1].lower()==".xlsx"):
+            # ignore files not matching expected report pattern
+            if verbose:
+                print("Unrecognized report-name format (skipping): %s\n" % file_name)
+            return
 
         print("\nReading data from %s..." % file_name)
         excel_data = pd.read_excel(import_path, dtype=str, engine="openpyxl")
@@ -575,9 +584,11 @@ class PartGroup(object):
         """
         file_name = os.path.basename(import_path)
         report_prefix = "SAP_multi_w"
-        if not file_name.startswith(report_prefix):
+        if not (file_name.startswith(report_prefix) and
+                              os.path.splitext(file_name)[-1].lower()==".xlsx"):
             # ignore files not matching expected report pattern
-            print("Unrecognized report-name format (skipping): %s\n" % file_name)
+            if verbose:
+                print("Unrecognized report-name format (skipping): %s\n" % file_name)
             return
 
         print("\nReading data from %s..." % file_name)
@@ -735,9 +746,11 @@ class PartGroup(object):
         """
         file_name = os.path.basename(import_path)
         report_prefix = "SAP_multi_BOM"
-        if not file_name.startswith(report_prefix):
+        if not (file_name.startswith(report_prefix)
+                        and os.path.splitext(file_name)[-1].lower()==".xlsx"):
             # ignore files not matching expected report pattern
-            print("Unrecognized report-name format (skipping): %s\n" % file_name)
+            if verbose:
+                print("Unrecognized report-name format (skipping): %s\n" % file_name)
             return
 
         print("\nReading data from %s..." % file_name)
@@ -759,6 +772,7 @@ class PartGroup(object):
         assert "Object description" in import_data.columns, ("Expected "
                                         "'Object description' in cell E1. "
                                         "Check formatting in %s." % file_name)
+        # Level column presence verified below.
 
         # Add report part to PartsGroup
         if self.get_part(part_num) == False:
@@ -799,17 +813,22 @@ class PartGroup(object):
                 current_level = int(import_data["Explosion level"][i].split(".")[-1])
             elif "Level" in import_data.columns:
                 current_level = int(import_data["Level"][i].split(".")[-1])
+            elif "Lv" in import_data.columns:
+                current_level = int(import_data["Lv"][i])
+            else:
+                raise Exception("Expected an explosion-level column to exist in file. "
+                                        "Check formatting in %s." % file_name)
 
             if verbose:
                 print("level: %d" % current_level)
 
             # Rudimentary data validation
             assert len(part_num) >= 5, ("Found less than 5 digits where "
-                            "part number should be in cell D%d of report. "
-                       "Check formatting in %s." % (i+2, file_name))
+                                "part number should be in row pos %d of report. "
+                                "Check formatting in %s." % (i+2, file_name))
             assert len(part_desc) > 0, ("Found empty cell where "
-                                "description string should be in cell E%d. "
-                        "Check formatting in %s." % (i+2, file_name))
+                                "description string should be in row pos %d. "
+                                "Check formatting in %s." % (i, file_name))
 
             if current_level > previous_level:
                 if verbose:
@@ -824,8 +843,7 @@ class PartGroup(object):
                 # same level; keep Parent the same.
                 pass
 
-            # Create and add this part to the group if not already in
-            # the Parts set.
+            # Create and add this part to the group if not already in Parts set.
             if self.get_part(part_num) == False:
                 NewPart = Part(part_num, name=part_desc)
                 if verbose:
@@ -856,18 +874,152 @@ class PartGroup(object):
 
 
     def import_SAP_multi_BOM_text_report(self, import_path, verbose=False):
-        """Read in a multi-level BOM exported from SAP CS12.
-        process runner (using CS11 "Level-by-Level" BOM explosion).
+        """Read in a multi-level BOM exported from SAP CS11 process runner
+        ("Level-by-Level" BOM explosion).
         """
         file_name = os.path.basename(import_path)
 
-        # Only report filenames of a specific naming convention
         filename_regex = r"^(\d{6}|\d{8})_\d{2}.txt$"
-        matches = re.findall(filename_regex, file_name)
+        matches = re.findall(filename_regex, file_name, flags=re.IGNORECASE)
         if not len(matches) == 1:
             # ignore files not matching expected report pattern
-            print("Unrecognized report-name format (skipping): %s\n" % file_name)
+            if verbose:
+                print("Unrecognized report-name format (skipping): %s\n" % file_name)
             return
+
+        if file_name == "660729_01.txt":
+            # handle one-off dup case. Read in and store 660729_02.txt instead.
+            return
+
+        # Read in table from text file
+        print("\nReading data from %s..." % file_name)
+        # Adopted functionality prototyped in SAP_text_platform_import.ipynb
+        import_data = pd.read_csv(import_path, sep=r"\s*\|\s*",
+                                skiprows=[0,1,2,3,4,5,6,7,9], header=0,
+                                engine="python")
+        # Get rid of leading and trailing blank columns
+        import_data = import_data.loc[:,~import_data.columns.str.match("Unnamed")]
+        # https://www.datasciencelearner.com/pandas/drop-unnamed-column-pandas/
+
+        # Remove any blank lines (text file often has one trailing blank line)
+        blank_row_mask = import_data["Component number"].isna() & import_data["Object description"].isna()
+        blank_rows = import_data[blank_row_mask]
+        import_data.drop(blank_rows.index, inplace=True)
+
+        file_pn_regex = r"^(\d{6}|\d{8})(?=_)"
+        pn_matches = re.findall(file_pn_regex, file_name, flags=re.IGNORECASE)
+        if len(matches) == 1:
+            part_num = pn_matches[0]
+        else:
+            raise Exception("Can't find P/N in filename: %s" % file_name)
+
+        # Check expected fields are present
+        assert "Component number" in import_data.columns, ("Expected column "
+                                        "called 'Component number' to exist in file. "
+                                        "Check formatting in %s." % file_name)
+        assert "Object description" in import_data.columns, ("Expected column "
+                                        "called 'Object description' to exist in file. "
+                                        "Check formatting in %s." % file_name)
+        # Level column presence verified below.
+
+        # Add report part to PartsGroup
+        if self.get_part(part_num) == False:
+            ReportPart = Part(part_num) # no description/name given
+            if verbose:
+                print("\tAdding %s to group (report part)" % ReportPart)
+            self.add_part(ReportPart)
+        else:
+            if verbose:
+                print("\tPart   %s already in group (report part)" % part_num)
+            ReportPart = self.get_part(part_num)
+            assert ReportPart not in self.report_Parts, ("Found multiple "
+                              "reports in import folder for %s:\n\t%s\n\t%s"
+               % (ReportPart.get_pn(), ReportPart.get_report_name(), file_name))
+
+        ReportPart.set_report_name(file_name)
+        self.report_Parts.add(ReportPart)
+
+        if verbose:
+            print(import_data.to_string(max_rows=10, max_cols=7))
+
+        # Create dictionary to store most recent part in each "level".
+        level_dict = {}
+
+        Parent = ReportPart
+        LastPart = Parent
+        previous_level = 0
+        for i in import_data.index:
+            if verbose:
+                print("\ni: %s (line %s)" % (str(i), str(i+2)))
+            part_num = import_data["Component number"][i]
+            part_desc = import_data["Object description"][i]
+            if len(part_num) < 6 and part_num.startswith("CU"):
+                # Skip "custom options"
+                continue
+
+            if "Explosion level" in import_data.columns:
+                current_level = int(import_data["Explosion level"][i].split(".")[-1])
+            elif "Level" in import_data.columns:
+                current_level = int(import_data["Level"][i].split(".")[-1])
+            elif "Lv" in import_data.columns:
+                current_level = int(import_data["Lv"][i])
+            else:
+                raise Exception("Expected an explosion-level column to exist in file. "
+                                        "Check formatting in %s." % file_name)
+
+            if verbose:
+                print("level: %d" % current_level)
+
+            # Rudimentary data validation
+            assert len(part_num) >= 5, ("Found less than 5 digits where "
+                                "part number should be in row pos %d of report. "
+                                "Check formatting in %s." % (i, file_name))
+            assert len(part_desc) > 0, ("Found empty cell where "
+                                "description string should be in row pos %d. "
+                                "Check formatting in %s." % (i, file_name))
+
+            if current_level > previous_level:
+                if verbose:
+                    print("current_level > previous_level")
+                Parent = LastPart
+                level_dict[previous_level] = LastPart
+            elif current_level <  previous_level:
+                if verbose:
+                    print("current_level < previous_level")
+                Parent = level_dict[current_level-1]
+            else:
+                # same level; keep Parent the same.
+                pass
+
+            # Create and add this part to the group if not already in Parts set.
+            if self.get_part(part_num) == False:
+                NewPart = Part(part_num, name=part_desc)
+                if verbose:
+                    print("\tAdding %s to group" % NewPart)
+                self.add_part(NewPart)
+            else:
+                if verbose:
+                    print("\tPart   %s already in group" % part_num)
+                NewPart = self.get_part(part_num)
+                # If parent doesn't have name/description stored, add it now.
+                if not NewPart.get_name():
+                    NewPart.set_name(part_desc)
+
+            # Add this parent to this part if not already in the Parents set.
+            if NewPart.get_parent(Parent.get_pn()) == False:
+                if verbose:
+                    print("\tAdding %s as parent of part %s" % (Parent, NewPart))
+                NewPart.add_parent(Parent)
+
+            LastPart = NewPart
+            previous_level = current_level
+
+        print("...done")
+        # print("\nParts:\t      %r" % self.Parts) # DEBUG
+        print("\nPart count:\t%d" % len(self.Parts)) # DEBUG
+        # print("Report parts: %r" % self.report_Parts) # DEBUG
+        print("Target parts: %r" % self.target_Parts) # DEBUG
+
 
     def find_missing_reports(self):
         """Used when importing individual where-used reports to find what reports are
