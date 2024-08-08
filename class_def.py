@@ -812,15 +812,10 @@ class PartGroup(object):
         # Adopted functionality prototyped in SAP_text_platform_import.ipynb
         import_df = pd.read_csv(import_path, sep=r"\s*\|\s*",
                                 skiprows=[0,1,2,3,4,5,6,7,9], header=0,
-                                engine="python")
+                                engine="python", skipfooter=1)
         # Get rid of leading and trailing blank columns
         import_df = import_df.loc[:,~import_df.columns.str.match("Unnamed")]
         # https://www.datasciencelearner.com/pandas/drop-unnamed-column-pandas/
-
-        # Remove any blank lines (text file often has one trailing blank line)
-        blank_row_mask = import_data["Component number"].isna() & import_data["Object description"].isna()
-        blank_rows = import_data[blank_row_mask]
-        import_data.drop(blank_rows.index, inplace=True)
 
         file_pn_regex = r"^(\d{6}|\d{8})(?=_)"
         pn_matches = re.findall(file_pn_regex, file_name, flags=re.IGNORECASE)
