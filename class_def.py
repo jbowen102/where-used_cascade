@@ -452,10 +452,10 @@ class PartGroup(object):
                 self.import_SAP_multi_w_report(import_path)
                 find_missing = False
             elif self.report_type == "SAP_multi_BOM":
-                self.import_SAP_multi_BOM_report(import_path)
+                self.import_SAP_multi_BOM_report_xlsx(import_path)
                 find_missing = False
             elif self.report_type == "SAP_multi_BOM_text":
-                self.import_SAP_multi_BOM_text_report(import_path)
+                self.import_SAP_multi_BOM_report_txt(import_path)
                 find_missing = False
 
         if not self.report_Parts:
@@ -740,9 +740,10 @@ class PartGroup(object):
         # print("Target parts: %r" % self.target_Parts) # DEBUG
 
 
-    def import_SAP_multi_BOM_report(self, import_path, verbose=False):
+    def import_SAP_multi_BOM_report_xlsx(self, import_path, verbose=False):
         """Read in a multi-level BOM exported from SAP CS12.
-        Create Parts objects and link parts based on BOM hierarchy.
+        Calls parse_multilev_bom_df() to create Parts objects and link parts
+        based on BOM hierarchy.
         """
         file_name = os.path.basename(import_path)
         report_prefix = "SAP_multi_BOM"
@@ -755,127 +756,26 @@ class PartGroup(object):
 
         print("\nReading data from %s..." % file_name)
         excel_data = pd.read_excel(import_path, dtype=str, engine="openpyxl")
-        import_data = pd.DataFrame(excel_data)
+        import_df = pd.DataFrame(excel_data)
         # https://stackoverflow.com/a/41662442
 
         pn_regex = r"(?<=^" + report_prefix + r"_)[\dA-Z]{1,40}(?=_\S*\.XLSX$|\.XLSX$)"
         pn_matches = re.findall(pn_regex, file_name, flags=re.IGNORECASE)
         if len(pn_matches) == 1:
-            part_num = pn_matches[0]
+            pn = pn_matches[0]
         else:
             raise Exception("Can't find P/N in filename: %s" % file_name)
 
-        # Check fields are in expected locations
-        assert "Component number" in import_data.columns, ("Expected "
-                                        "'Component number' in cell D1. "
-                                        "Check formatting in %s." % file_name)
-        assert "Object description" in import_data.columns, ("Expected "
-                                        "'Object description' in cell E1. "
-                                        "Check formatting in %s." % file_name)
-        # Level column presence verified below.
-
-        # Add report part to PartsGroup
-        if self.get_part(part_num) == False:
-            ReportPart = Part(part_num) # no description/name given
-            if verbose:
-                print("\tAdding %s to group (report part)" % ReportPart)
-            self.add_part(ReportPart)
-        else:
-            if verbose:
-                print("\tPart   %s already in group (report part)" % part_num)
-            ReportPart = self.get_part(part_num)
-            assert ReportPart not in self.report_Parts, ("Found multiple "
-                              "reports in import folder for %s:\n\t%s\n\t%s"
-               % (ReportPart.get_pn(), ReportPart.get_report_name(), file_name))
-
-        ReportPart.set_report_name(file_name)
-        self.report_Parts.add(ReportPart)
-
-        if verbose:
-            print(import_data.to_string(max_rows=10, max_cols=7))
-
-        # Create dictionary to store most recent part in each "level".
-        level_dict = {}
-
-        Parent = ReportPart
-        LastPart = Parent
-        previous_level = 0
-        for i in import_data.index:
-            if verbose:
-                print("\ni: %s (line %s)" % (str(i), str(i+2)))
-            part_num = import_data["Component number"][i]
-            part_desc = import_data["Object description"][i]
-            if len(part_num) < 6 and part_num.startswith("CU"):
-                # Skip "custom options"
-                continue
-
-            if "Explosion level" in import_data.columns:
-                current_level = int(import_data["Explosion level"][i].split(".")[-1])
-            elif "Level" in import_data.columns:
-                current_level = int(import_data["Level"][i].split(".")[-1])
-            elif "Lv" in import_data.columns:
-                current_level = int(import_data["Lv"][i])
-            else:
-                raise Exception("Expected an explosion-level column to exist in file. "
-                                        "Check formatting in %s." % file_name)
-
-            if verbose:
-                print("level: %d" % current_level)
-
-            # Rudimentary data validation
-            assert len(part_num) >= 5, ("Found less than 5 digits where "
-                                "part number should be in row pos %d of report. "
-                                "Check formatting in %s." % (i+2, file_name))
-            assert len(part_desc) > 0, ("Found empty cell where "
-                                "description string should be in row pos %d. "
-                                "Check formatting in %s." % (i, file_name))
-
-            if current_level > previous_level:
-                if verbose:
-                    print("current_level > previous_level")
-                Parent = LastPart
-                level_dict[previous_level] = LastPart
-            elif current_level <  previous_level:
-                if verbose:
-                    print("current_level < previous_level")
-                Parent = level_dict[current_level-1]
-            else:
-                # same level; keep Parent the same.
-                pass
-
-            # Create and add this part to the group if not already in Parts set.
-            if self.get_part(part_num) == False:
-                NewPart = Part(part_num, name=part_desc)
-                if verbose:
-                    print("\tAdding %s to group" % NewPart)
-                self.add_part(NewPart)
-            else:
-                if verbose:
-                    print("\tPart   %s already in group" % part_num)
-                NewPart = self.get_part(part_num)
-                # If parent doesn't have name/description stored, add it now.
-                if not NewPart.get_name():
-                    NewPart.set_name(part_desc)
-
-            # Add this parent to this part if not already in the Parents set.
-            if NewPart.get_parent(Parent.get_pn()) == False:
-                if verbose:
-                    print("\tAdding %s as parent of part %s" % (Parent, NewPart))
-                NewPart.add_parent(Parent)
-
-            LastPart = NewPart
-            previous_level = current_level
-
-        print("...done")
-        # print("\nParts:\t      %r" % self.Parts) # DEBUG
-        print("\nPart count:\t%d" % len(self.Parts)) # DEBUG
-        # print("Report parts: %r" % self.report_Parts) # DEBUG
-        print("Target parts: %r" % self.target_Parts) # DEBUG
+        # Pass df to common helper function that parses structure and creates
+        # objects and relations.
+        self.parse_multilev_bom_df(import_df, pn, file_name)
 
 
-    def import_SAP_multi_BOM_text_report(self, import_path, verbose=False):
+    def import_SAP_multi_BOM_report_txt(self, import_path, verbose=False):
         """Read in a multi-level BOM exported from SAP CS11 process runner
         ("Level-by-Level" BOM explosion).
+        Calls parse_multilev_bom_df() to create Parts objects and link parts
+        based on BOM hierarchy.
         """
         file_name = os.path.basename(import_path)
 
@@ -894,11 +794,11 @@ class PartGroup(object):
         # Read in table from text file
         print("\nReading data from %s..." % file_name)
         # Adopted functionality prototyped in SAP_text_platform_import.ipynb
-        import_data = pd.read_csv(import_path, sep=r"\s*\|\s*",
+        import_df = pd.read_csv(import_path, sep=r"\s*\|\s*",
                                 skiprows=[0,1,2,3,4,5,6,7,9], header=0,
                                 engine="python")
         # Get rid of leading and trailing blank columns
-        import_data = import_data.loc[:,~import_data.columns.str.match("Unnamed")]
+        import_df = import_df.loc[:,~import_df.columns.str.match("Unnamed")]
         # https://www.datasciencelearner.com/pandas/drop-unnamed-column-pandas/
 
         # Remove any blank lines (text file often has one trailing blank line)
@@ -909,17 +809,26 @@ class PartGroup(object):
         file_pn_regex = r"^(\d{6}|\d{8})(?=_)"
         pn_matches = re.findall(file_pn_regex, file_name, flags=re.IGNORECASE)
         if len(matches) == 1:
-            part_num = pn_matches[0]
+            pn = pn_matches[0]
         else:
             raise Exception("Can't find P/N in filename: %s" % file_name)
 
+        # Pass df to common helper function that parses structure and creates
+        # objects and relations.
+        self.parse_multilev_bom_df(import_df, pn, file_name)
+
+
+    def parse_multilev_bom_df(self, import_data, part_num, filename, verbose=False):
+        """
+        Create Parts objects and link parts based on BOM hierarchy.
+        """
         # Check expected fields are present
         assert "Component number" in import_data.columns, ("Expected column "
                                         "called 'Component number' to exist in file. "
-                                        "Check formatting in %s." % file_name)
+                                        "Check formatting in %s." % filename)
         assert "Object description" in import_data.columns, ("Expected column "
                                         "called 'Object description' to exist in file. "
-                                        "Check formatting in %s." % file_name)
+                                        "Check formatting in %s." % filename)
         # Level column presence verified below.
 
         # Add report part to PartsGroup
@@ -934,9 +843,9 @@ class PartGroup(object):
             ReportPart = self.get_part(part_num)
             assert ReportPart not in self.report_Parts, ("Found multiple "
                               "reports in import folder for %s:\n\t%s\n\t%s"
-               % (ReportPart.get_pn(), ReportPart.get_report_name(), file_name))
+               % (ReportPart.get_pn(), ReportPart.get_report_name(), filename))
 
-        ReportPart.set_report_name(file_name)
+        ReportPart.set_report_name(filename)
         self.report_Parts.add(ReportPart)
 
         if verbose:
@@ -965,7 +874,7 @@ class PartGroup(object):
                 current_level = int(import_data["Lv"][i])
             else:
                 raise Exception("Expected an explosion-level column to exist in file. "
-                                        "Check formatting in %s." % file_name)
+                                        "Check formatting in %s." % filename)
 
             if verbose:
                 print("level: %d" % current_level)
@@ -973,10 +882,10 @@ class PartGroup(object):
             # Rudimentary data validation
             assert len(part_num) >= 5, ("Found less than 5 digits where "
                                 "part number should be in row pos %d of report. "
-                                "Check formatting in %s." % (i, file_name))
+                                "Check formatting in %s." % (i, filename))
             assert len(part_desc) > 0, ("Found empty cell where "
                                 "description string should be in row pos %d. "
-                                "Check formatting in %s." % (i, file_name))
+                                "Check formatting in %s." % (i, filename))
 
             if current_level > previous_level:
                 if verbose:
