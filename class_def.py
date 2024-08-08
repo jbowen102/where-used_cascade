@@ -791,6 +791,22 @@ class PartGroup(object):
             # handle one-off dup case. Read in and store 660729_02.txt instead.
             return
 
+        if file_name in ("666483_01.txt",
+                         "666484_01.txt",
+                         "U2023HXJ2EU1P_01.txt",
+                         "U2024TKJ2CCAB_01.txt",
+                         "U2024TKJ2CCAT_01_01.txt",
+                         "U2024TMJ2CCAS_01_01.txt",
+                         "U2024TMJ2CCAT_01_01.txt",
+                         "U2024TNJ2CCAT_01.txt",
+                         "631385_01.txt",
+                         "631387_01.txt",
+                         "662553_01.txt",
+                         "631388_01.txt",
+                         "671547_01.txt"):
+            # Exclude non-AGS platforms.
+            return
+
         # Read in table from text file
         print("\nReading data from %s..." % file_name)
         # Adopted functionality prototyped in SAP_text_platform_import.ipynb
