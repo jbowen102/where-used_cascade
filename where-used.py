@@ -28,6 +28,10 @@ parser.add_argument("-t", "--target-part", help="Pass in single target part "
                                                         type=str, default=None)
 parser.add_argument("-e", "--exclude-obs", help="Exclude obsolete and orphaned "
                 "parts from multi-level where-used graph.", action="store_true")
+parser.add_argument("-l", "--local", help="Specify to use local SAP exports "
+                                   "instead of pulling from network drive "
+                                   "(for any features that use SAP_multi_BOM).",
+                                                            action="store_true")
 # https://www.programcreek.com/python/example/748/argparse.ArgumentParser
 args = parser.parse_args()
 
@@ -44,6 +48,7 @@ if args.target_part:
 
     with open(class_def.TARGET_PARTS_PATH, "w") as target_parts_file:
         target_parts_file.write(args.target_part.upper())
+
 
 AllParts = class_def.PartGroup()
 AllParts.import_platforms(platform_dict)
@@ -79,8 +84,10 @@ elif args.mode.lower() == "union":
     Program will report any target parts not found in multi-BOMs (and thus not
     expanded).
     """
-    AllParts.import_all_reports(report_type="SAP_multi_BOM")
-    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
+    if args.local:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM")
+    else:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
 
     #### TEMP - used to see if mods/parts being used on new platforms include
     ####        any parts I'm obsoleting
@@ -105,8 +112,10 @@ elif args.mode.lower() == "union_diff":
     Program will report any target parts not found in multi-BOMs (and thus not
     expanded).
     """
-    AllParts.import_all_reports(report_type="SAP_multi_BOM")
-    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
+    if args.local:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_xlsx")
+    else:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
     # Takes list of mods/parts in target parts unioned BOM and subtract all unioned
     # parts/mods from another list.
     # Can use to isolate unique parts for an F/A within a platform
@@ -129,8 +138,11 @@ elif args.mode.lower() == "platform":
     to show up next to parts it uses.
     Non-platform multi-BOMs in import folder are ignored.
     """
-    AllParts.import_all_reports(report_type="SAP_multi_BOM")
-    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
+    if args.local:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_xlsx")
+    else:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
+
     AllParts.import_target_parts()
 
     AllParts.export_parts_set(pn_set=AllParts.get_target_parts(),
@@ -150,8 +162,10 @@ elif args.mode.lower() == "platform_union":
     Program will report any target parts not found in multi-BOMs (and thus not
     expanded).
     """
-    AllParts.import_all_reports(report_type="SAP_multi_BOM")
-    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
+    if args.local:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_xlsx")
+    else:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
 
     # Export union bom w/ platform applications:
     AllParts.export_parts_set(pn_set=AllParts.get_union_bom(),
@@ -178,8 +192,10 @@ elif args.mode.lower() == "union_loop":
     Exports list of target part and every part used in any level below the
     target part.
     """
-    AllParts.import_all_reports(report_type="SAP_multi_BOM")
-    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
+    if args.local:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_xlsx")
+    else:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
 
     while True:
         print("\nEnter P/N")
@@ -198,8 +214,11 @@ elif args.mode.lower() == "bom_vis":
     Can't have any multi-level BOMs in the import folder that you don't want on
     the graph.
     """
-    AllParts.import_all_reports(report_type="SAP_multi_BOM")
-    # AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
+    if args.local:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_xlsx")
+    else:
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
+
     # AllParts.import_target_parts()
 
     TreeViz = class_def.TreeGraph(AllParts, target_group_only=False,

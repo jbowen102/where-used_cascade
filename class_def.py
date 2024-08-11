@@ -1,7 +1,8 @@
 print("Importing modules...")
 import os
 import csv
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 import getpass
 import re
 import colorama
@@ -18,6 +19,8 @@ IMPORT_DIR_REMOTE = os.path.join(SCRIPT_DIR, "import_remote")
 EXPORT_DIR = os.path.join(SCRIPT_DIR, "export")
 TARGET_PARTS_PATH = os.path.join(IMPORT_DIR, "target_parts.txt")
 # https://stackoverflow.com/questions/29768937/return-the-file-path-of-the-file-not-the-current-directory
+
+DATE_FORMAT = "%Y-%m-%d"  # Global format
 
 
 class Part(object):
@@ -421,10 +424,24 @@ class PartGroup(object):
 
         self.report_Parts = set()
 
-        if import_subdir:
-            import_dir = os.path.join(IMPORT_DIR, import_subdir)
-        elif self.report_type == "SAP_multi_BOM_text":
+        if self.report_type == "SAP_multi_BOM_text":
             import_dir = os.path.join(IMPORT_DIR_REMOTE, "Text_Files")
+
+            # Remind user that program will use remote CS11 exports w/ the
+            # indicated effectivity date.
+            sample_file = os.listdir(import_dir)[0] # all are the same.
+            cs11_eff_date = time.localtime(os.path.getmtime(os.path.join(import_dir, sample_file)))
+            # Have to convert to datetime obj to do 4-day shift:
+            cs11_eff_date_shifted = datetime.fromtimestamp(time.mktime(cs11_eff_date)) + timedelta(days=4)
+            # https://stackoverflow.com/questions/1697815/how-do-you-convert-a-time-struct-time-object-into-a-datetime-object
+            cs11_eff_date_str = datetime.strftime(cs11_eff_date_shifted, DATE_FORMAT)
+            print(colorama.Fore.GREEN + colorama.Style.BRIGHT)
+            input("Remote CS11 exports with effectivity date %s will be used. "
+                                "Press Enter to continue." % cs11_eff_date_str
+                                                    + colorama.Style.RESET_ALL)
+            print()
+        elif import_subdir:
+            import_dir = os.path.join(IMPORT_DIR, import_subdir)
         else:
             import_dir = IMPORT_DIR
 
@@ -788,7 +805,7 @@ class PartGroup(object):
             return
 
         if file_name == "660729_01.txt":
-            # handle one-off dup case. Read in and store 660729_02.txt instead.
+            # Handle one-off dup case. Read in and store 660729_02.txt instead.
             return
 
         if file_name in ("666483_01.txt",
