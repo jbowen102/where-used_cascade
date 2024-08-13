@@ -10,6 +10,8 @@ import colorama
 import pandas as pd
 import numpy as np
 import pydot
+
+import platforms                        # local python script w/ reference info.
 print("...done\n")
 
 # dir path where this script is stored
@@ -436,7 +438,7 @@ class PartGroup(object):
             # https://stackoverflow.com/questions/1697815/how-do-you-convert-a-time-struct-time-object-into-a-datetime-object
             cs11_eff_date_str = datetime.strftime(cs11_eff_date_shifted, DATE_FORMAT)
             print(colorama.Fore.GREEN + colorama.Style.BRIGHT)
-            input("Remote CS11 exports with effectivity date %s will be used. "
+            input("Remote CS11 exports will be used. Effectivity date:\t%s\n"
                                 "Press Enter to continue." % cs11_eff_date_str
                                                     + colorama.Style.RESET_ALL)
             print()
@@ -804,20 +806,15 @@ class PartGroup(object):
                 print("Unrecognized report-name format (skipping): %s\n" % file_name)
             return
 
+        file_pn_regex = r"^(\d{6}|\d{8})(?=_)"
+        pn_matches = re.findall(file_pn_regex, file_name, flags=re.IGNORECASE)
+        if len(matches) == 1:
+            pn = pn_matches[0]
+        else:
+            raise Exception("Can't find P/N in filename: %s" % file_name)
+
         # Exclude non-AGS platforms.
-        if file_name in ("666483_01.txt",
-                         "666484_01.txt",
-                         "U2023HXJ2EU1P_01.txt",
-                         "U2024TKJ2CCAB_01.txt",
-                         "U2024TKJ2CCAT_01_01.txt",
-                         "U2024TMJ2CCAS_01_01.txt",
-                         "U2024TMJ2CCAT_01_01.txt",
-                         "U2024TNJ2CCAT_01.txt",
-                         "631385_01.txt",
-                         "631387_01.txt",
-                         "662553_01.txt",
-                         "631388_01.txt",
-                         "671547_01.txt"):
+        if pn not in platforms.platform_pns_AGS_base:
             return
 
         # Read in table from text file
@@ -829,13 +826,6 @@ class PartGroup(object):
         # Get rid of leading and trailing blank columns
         import_df = import_df.loc[:,~import_df.columns.str.match("Unnamed")]
         # https://www.datasciencelearner.com/pandas/drop-unnamed-column-pandas/
-
-        file_pn_regex = r"^(\d{6}|\d{8})(?=_)"
-        pn_matches = re.findall(file_pn_regex, file_name, flags=re.IGNORECASE)
-        if len(matches) == 1:
-            pn = pn_matches[0]
-        else:
-            raise Exception("Can't find P/N in filename: %s" % file_name)
 
         # Pass df to common helper function that parses structure and creates
         # objects and relations.
