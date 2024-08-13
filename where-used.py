@@ -85,7 +85,7 @@ elif args.mode.lower() == "union":
     expanded).
     """
     if args.local:
-        AllParts.import_all_reports(report_type="SAP_multi_BOM")
+        AllParts.import_all_reports(report_type="SAP_multi_BOM_xlsx")
     else:
         AllParts.import_all_reports(report_type="SAP_multi_BOM_text")
 

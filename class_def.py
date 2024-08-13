@@ -402,9 +402,9 @@ class PartGroup(object):
         find_missing should only be specified the first time method is called.
         """
         if report_type:
-            assert report_type in ["SAPTC", "SAP_multi_w", "SAP_multi_BOM",
+            assert report_type in ["SAPTC", "SAP_multi_w", "SAP_multi_BOM_xlsx",
                 "SAP_multi_BOM_text"], ("The only recognized report types are "
-                                    "'SAPTC', 'SAP_multi_w', 'SAP_multi_BOM', "
+                                    "'SAPTC', 'SAP_multi_w', 'SAP_multi_BOM_xlsx', "
                                                     "and 'SAP_multi_BOM_text'.")
         # Initialize list of primary parts that reports pertain to.
         if report_type and self.report_type:
@@ -470,7 +470,7 @@ class PartGroup(object):
             elif self.report_type == "SAP_multi_w":
                 self.import_SAP_multi_w_report(import_path)
                 find_missing = False
-            elif self.report_type == "SAP_multi_BOM":
+            elif self.report_type == "SAP_multi_BOM_xlsx":
                 self.import_SAP_multi_BOM_report_xlsx(import_path)
                 find_missing = False
             elif self.report_type == "SAP_multi_BOM_text":
