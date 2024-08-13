@@ -796,7 +796,7 @@ class PartGroup(object):
         """
         file_name = os.path.basename(import_path)
 
-        filename_regex = r"^(\d{6}|\d{8})_\d{2}.txt$"
+        filename_regex = r"^(\d{6}|\d{8})_01.txt$"
         matches = re.findall(filename_regex, file_name, flags=re.IGNORECASE)
         if not len(matches) == 1:
             # ignore files not matching expected report pattern
@@ -804,10 +804,7 @@ class PartGroup(object):
                 print("Unrecognized report-name format (skipping): %s\n" % file_name)
             return
 
-        if file_name == "660729_01.txt":
-            # Handle one-off dup case. Read in and store 660729_02.txt instead.
-            return
-
+        # Exclude non-AGS platforms.
         if file_name in ("666483_01.txt",
                          "666484_01.txt",
                          "U2023HXJ2EU1P_01.txt",
@@ -821,7 +818,6 @@ class PartGroup(object):
                          "662553_01.txt",
                          "631388_01.txt",
                          "671547_01.txt"):
-            # Exclude non-AGS platforms.
             return
 
         # Read in table from text file
