@@ -53,35 +53,33 @@ class Part(object):
     def get_report_name(self):
         return self.report_name
 
-    def get_report_suffix(self):
+    def get_report_suffix(self, custom_append_text=None):
         """If part has a report, see if report has a suffix after the standard
         name and return that if so.
+        Returns suffix w/ underscore prepended.
         """
         if not self.report_name:
             return None
-        elif "SAP_multi_w" in self.report_name:
-            report_prefix = "SAP_multi_w_"
-        elif "SAPTC" in self.report_name:
-            report_prefix = "SAPTC_BOM_Report_"
-        elif "SAP_multi_BOM" in self.report_name:
-            report_prefix = "SAP_multi_BOM_"
-        elif self.report_name.endswith(".txt"):
-            return None # Never expect a suffix in network-drive exports.
-        else:
-            raise Exception("Report prefix in report_name %s doesn't match any "\
-                                        "recognized format." % self.report_name)
 
-        suffix_regex = r"(?<=" + self.part_num + r"_)[\w\-]+(?=.XLSX$)"
-        suffix_matches = re.findall(suffix_regex, self.report_name, flags=re.IGNORECASE)
+        import_suffix_regex = r"(?<=" + self.part_num + r"_)[\w\-]+(?=.XLSX$)"
+        import_suffix_matches = re.findall(import_suffix_regex, self.report_name, flags=re.IGNORECASE)
         # print("\nSuffix matches: %r" % suffix_matches) # DEBUG
 
-        if len(suffix_matches) == 1:
-            return suffix_matches[0]
-        elif not suffix_matches:
+        assert not len(import_suffix_matches) > 1, "\nSuffix-matching failed for \
+                    P/N %s's report: '%s'" % (self.part_num, self.report_name)
+
+        suffix = ""
+
+        if len(import_suffix_matches) == 1:
+            suffix += "_" + import_suffix_matches[0]
+        if not import_suffix_matches:
             # No suffix in filename - ok
-            return None
-        else:
-            raise Exception("\nSuffix-matching failed for %s" % self.report_name)
+            pass
+
+        if custom_append_text is not None:
+            suffix += "_" + custom_append_text
+
+        return suffix
 
     def get_obs_disp(self):
         return self.obs_disp
@@ -231,6 +229,8 @@ class PartGroup(object):
         # print("\nParts:\t      %r" % self.Parts) # DEBUG
         # print("Report parts: %r" % self.report_Parts) # DEBUG
         # print("Target parts: %r" % self.target_Parts) # DEBUG
+
+        self.eff_date_str = None        # Not used in all cases. Check if None before using.
 
     def import_platforms(self, platform_dict):
         """Read in platform data from given dictionary (where key is PN and
@@ -441,6 +441,7 @@ class PartGroup(object):
             input("Remote CS11 exports will be used. Effectivity date:\t%s\n"
                                 "Press Enter to continue." % cs11_eff_date_str
                                                     + colorama.Style.RESET_ALL)
+            self.eff_date_str = "CS11eff_%s" % cs11_eff_date_str
             print()
         elif import_subdir:
             import_dir = os.path.join(IMPORT_DIR, import_subdir)
@@ -1038,18 +1039,19 @@ class PartGroup(object):
             # only one target part present; see if its report has a suffix. If
             # so, prompt for inclusion in string.
             suffix_Part = pn_set.pop()
-            report_suffix = suffix_Part.get_report_suffix()
-
+            report_suffix = suffix_Part.get_report_suffix(
+                                            custom_append_text=self.eff_date_str)
+            # report_suffix already includes prepended underscore.
             if report_suffix:
                 colorama.init()
                 suffix_answer = ""
                 while suffix_answer.lower() not in ["y", "n"]:
                     print(colorama.Fore.GREEN + colorama.Style.BRIGHT +
-                        "\nAppend report suffix '%s' to " "output filename? "
+                        "\nAppend suffix '%s' to " "output filename? "
                                                         "[Y/N]" % report_suffix)
                     suffix_answer = input("> " + colorama.Style.RESET_ALL)
                 if suffix_answer.lower() == "y":
-                    pn_str_suffix = "_" + report_suffix
+                    pn_str_suffix = report_suffix
                 else:
                     pass
                     # Keep it blank
