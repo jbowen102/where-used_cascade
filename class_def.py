@@ -23,7 +23,9 @@ TARGET_PARTS_PATH = os.path.join(IMPORT_DIR, "target_parts.txt")
 # https://stackoverflow.com/questions/29768937/return-the-file-path-of-the-file-not-the-current-directory
 
 DATETIME_FORMAT = "%Y-%m-%dT%H%M%S"
+DATE_FORMAT = "%Y-%m-%d"
 DATE_FORMAT_SHORT = "%Y%m%d"
+
 
 class Part(object):
     """Object to represent a part, assy, or mod, to be used in building BOM
@@ -427,6 +429,12 @@ class PartGroup(object):
         self.report_Parts = set()
 
         if self.report_type == "SAP_multi_BOM_text":
+            # First check that network drive is available.
+            while not os.path.isdir(IMPORT_DIR_REMOTE):
+                input("\nCan't find network folder '%s'. Check network connection "
+                                "and mount drive in separate terminal window.\n"
+                                                         "Press Enter to retry."
+                                          % os.path.basename(IMPORT_DIR_REMOTE))
             import_dir = os.path.join(IMPORT_DIR_REMOTE, "Text_Files")
 
             # Remind user that program will use remote CS11 exports w/ the
