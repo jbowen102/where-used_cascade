@@ -22,8 +22,8 @@ EXPORT_DIR = os.path.join(SCRIPT_DIR, "export")
 TARGET_PARTS_PATH = os.path.join(IMPORT_DIR, "target_parts.txt")
 # https://stackoverflow.com/questions/29768937/return-the-file-path-of-the-file-not-the-current-directory
 
-DATE_FORMAT = "%Y-%m-%d"  # Global format
-
+DATETIME_FORMAT = "%Y-%m-%dT%H%M%S"
+DATE_FORMAT_SHORT = "%Y%m%d"
 
 class Part(object):
     """Object to represent a part, assy, or mod, to be used in building BOM
@@ -436,12 +436,12 @@ class PartGroup(object):
             # Have to convert to datetime obj to do 4-day shift:
             cs11_eff_date_shifted = datetime.fromtimestamp(time.mktime(cs11_eff_date)) + timedelta(days=4)
             # https://stackoverflow.com/questions/1697815/how-do-you-convert-a-time-struct-time-object-into-a-datetime-object
-            cs11_eff_date_str = datetime.strftime(cs11_eff_date_shifted, DATE_FORMAT)
+            cs11_eff_date_str = datetime.strftime(cs11_eff_date_shifted, DATE_FORMAT_SHORT)
             print(colorama.Fore.GREEN + colorama.Style.BRIGHT)
             input("Remote CS11 exports will be used. Effectivity date:\t%s\n"
                                 "Press Enter to continue." % cs11_eff_date_str
                                                     + colorama.Style.RESET_ALL)
-            self.eff_date_str = "CS11eff_%s" % cs11_eff_date_str
+            self.eff_date_str = "CS11eff%s" % cs11_eff_date_str
             print()
         elif import_subdir:
             import_dir = os.path.join(IMPORT_DIR, import_subdir)
@@ -993,7 +993,7 @@ class PartGroup(object):
         Default is to export all parts in group. Can use pn_set to pass in the
         specific parts set desired.
         """
-        timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
+        timestamp = datetime.now().strftime(DATETIME_FORMAT)
         export_path = os.path.join(EXPORT_DIR, "%s_%s_parts_set.csv"
                                   % (timestamp, self.get_pn_string(max_len=31)))
 
@@ -1101,7 +1101,7 @@ class TreeGraph(object):
     def build_graph(self):
         # Get username and datestamp to include on graph.
         username = getpass.getuser()
-        self.timestamp = datetime.now().strftime("%Y-%m-%dT%H%M%S")
+        self.timestamp = datetime.now().strftime(DATETIME_FORMAT)
         if self.PartsGr.get_target_parts():
             part_nums = self.PartsGr.get_target_parts()
         else:
