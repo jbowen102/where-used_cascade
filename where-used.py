@@ -26,6 +26,9 @@ parser.add_argument("-gc", "--compact", help="Specify that graph should be "
 parser.add_argument("-t", "--target-part", help="Pass in single target part "
                         "to use in place of target_parts.txt contents.",
                                                         type=str, default=None)
+parser.add_argument("-ta", "--target-all", help="Use all platforms as target parts "
+                                    "in place of target_parts.txt contents.",
+                                                            action="store_true")
 parser.add_argument("-e", "--exclude-obs", help="Exclude obsolete and orphaned "
                 "parts from multi-level where-used graph.", action="store_true")
 parser.add_argument("-l", "--local", help="Specify to use local SAP exports "
@@ -40,18 +43,24 @@ assert args.mode in ["single", "multi", "union", "union_diff", "platform",
                         "platform_union", "assy_list", "union_loop", "bom_vis"]
 if args.exclude_obs:
     assert args.mode == "multi", "-e flag can only be used with multi mode."
-if args.target_part:
+
+AllParts = class_def.PartGroup()
+AllParts.import_platforms(platform_dict)
+
+if args.target_all or args.target_part:
     with open(class_def.TARGET_PARTS_PATH, "r") as target_parts_file:
         # Display contents about to be overwritten.
         print("Previous %s contents:" % os.path.basename(class_def.TARGET_PARTS_PATH))
         print(target_parts_file.read())
+    if args.target_part:
+        with open(class_def.TARGET_PARTS_PATH, "w") as target_parts_file:
+            target_parts_file.write(args.target_part.upper())
+    elif args.target_all:
+        with open(class_def.TARGET_PARTS_PATH, "w") as target_parts_file:
+            # target_parts_file.write(args.target_part.upper())
+            for Platform in AllParts.get_platforms():
+                target_parts_file.write(str(Platform) + "\n")
 
-    with open(class_def.TARGET_PARTS_PATH, "w") as target_parts_file:
-        target_parts_file.write(args.target_part.upper())
-
-
-AllParts = class_def.PartGroup()
-AllParts.import_platforms(platform_dict)
 
 if args.mode.lower() == "single":
     """Reads in TC-SAP single-level where-used report(s), builds structure from
