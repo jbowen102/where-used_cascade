@@ -1,18 +1,18 @@
-print("Importing modules...")
+print("Importing modules...", end="")
 import os
 import csv
 import time
 from datetime import datetime, timedelta
 import getpass
 import re
-import colorama
+from colorama import Fore, Style
 
 import pandas as pd
 import numpy as np
 import pydot
 
 import platforms                        # local python script w/ reference info.
-print("...done\n")
+print("done")
 
 # dir path where this script is stored
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -238,14 +238,14 @@ class PartGroup(object):
         """Read in platform data from given dictionary (where key is PN and
         value is True/False for can_obs).
         """
-        print("\nImporting platforms...")
+        print("Importing platforms...", end="")
         for platform in platform_dict:
             platform_pn = platform.split("-")[0]
             platform_desc = platform[len(platform_pn)+1:]
             platform_obs = platform_dict[platform]
             # print("\tAdding platform %12s  to group" % platform_pn) # DEBUG
             self.add_part(Platform(platform_pn, platform_desc, platform_obs))
-        print("...done")
+        print("done")
 
     def add_part(self, Part_i):
         self.Parts.add(Part_i)
@@ -350,7 +350,7 @@ class PartGroup(object):
         target_filename = os.path.basename(TARGET_PARTS_PATH)
         assert os.path.exists(TARGET_PARTS_PATH), "Can't find %s" % target_filename
 
-        print("\nImporting list of target parts from %s..." % target_filename)
+        print("\nImporting list of target parts from %s..." % target_filename, end="")
         with open(TARGET_PARTS_PATH, "r") as target_file_it:
             lines = target_file_it.read().splitlines()
             # https://stackoverflow.com/questions/19062574/read-file-into-list-and-strip-newlines
@@ -363,14 +363,14 @@ class PartGroup(object):
                 target_part_line = target_part_line.rstrip()
                 target_pn = target_part_line.split("-")[0]
 
-                assert len(target_pn) >= 6, ("Encountered %s in file %s. "
+                assert len(target_pn) >= 6, ("\nEncountered %s in file %s. "
                                             "Expected a P/N of length >= 6."
                                           % (target_part_line, target_filename))
                 if len(target_part_line.split("-")) > 1:
                     # Including description isn't necessary in target_parts
                     # list.
                     target_desc = target_part_line[len(target_pn)+1:]
-                    assert len(target_desc) > 1, ("Encountered %s in file "
+                    assert len(target_desc) > 1, ("\nEncountered %s in file "
                             "%s. Expected a description after P/N and dash."
                                           % (target_part_line, target_filename))
                 else:
@@ -394,7 +394,7 @@ class PartGroup(object):
             self.Parts.update(self.target_Parts)
 
         assert len(self.target_Parts) != 0, "No target parts found in %s" % target_filename
-        print("...done")
+        print("done")
 
     def import_all_reports(self, report_type=None, find_missing=True,
                                                            import_subdir=None):
@@ -445,10 +445,10 @@ class PartGroup(object):
             cs11_eff_date_shifted = datetime.fromtimestamp(time.mktime(cs11_eff_date)) + timedelta(days=4)
             # https://stackoverflow.com/questions/1697815/how-do-you-convert-a-time-struct-time-object-into-a-datetime-object
             cs11_eff_date_str = datetime.strftime(cs11_eff_date_shifted, DATE_FORMAT_SHORT)
-            print(colorama.Fore.GREEN + colorama.Style.BRIGHT)
+            print(Fore.GREEN + Style.BRIGHT)
             input("Remote CS11 exports will be used. Effectivity date:\t%s\n"
                                 "Press Enter to continue." % cs11_eff_date_str
-                                                    + colorama.Style.RESET_ALL)
+                                                    + Style.RESET_ALL)
             self.eff_date_str = "CS11eff%s" % cs11_eff_date_str
             print()
         elif import_subdir:
@@ -1014,7 +1014,7 @@ class PartGroup(object):
         with open(export_path, 'w+') as output_file:
             output_file_csv = csv.writer(output_file, dialect="excel")
 
-            print("\nWriting combined data to %s..." % os.path.basename(export_path))
+            print("\nWriting combined data to %s..." % os.path.basename(export_path), end="")
             for part in parts_list:
                 if platform_app:
                     platform_set = part.get_platform_refs()
@@ -1025,7 +1025,7 @@ class PartGroup(object):
                                  ["-", obs_det, "Platforms: "] + platform_list)
                 else:
                     output_file_csv.writerow([part.get_pn(), part.get_name()])
-            print("...done")
+            print("done")
 
 
     def get_pn_string(self, pn_set_spec=False, max_len=40):
@@ -1051,13 +1051,12 @@ class PartGroup(object):
                                             custom_append_text=self.eff_date_str)
             # report_suffix already includes prepended underscore.
             if report_suffix:
-                colorama.init()
                 suffix_answer = ""
                 while suffix_answer.lower() not in ["y", "n"]:
-                    print(colorama.Fore.GREEN + colorama.Style.BRIGHT +
+                    print(Fore.GREEN + Style.BRIGHT +
                         "\nAppend suffix '%s' to " "output filename? "
                                                         "[Y/N]" % report_suffix)
-                    suffix_answer = input("> " + colorama.Style.RESET_ALL)
+                    suffix_answer = input("> " + Style.RESET_ALL)
                 if suffix_answer.lower() == "y":
                     pn_str_suffix = report_suffix
                 else:
@@ -1226,9 +1225,9 @@ class TreeGraph(object):
         else:
             suffix = ""
         export_img_path = "%s%s.%s" % (export_path_no_ext, suffix, "png")
-        print("\nWriting graph to %s..." % os.path.basename(export_img_path))
+        print("\nWriting graph to %s..." % os.path.basename(export_img_path), end="")
         self.graph.write_png(export_img_path)
-        print("...done")
+        print("done")
 
         # GraphViz format:
         # export_gv_path = "%s.%s" % (export_path_no_ext, "gv")

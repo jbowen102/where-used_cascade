@@ -1,5 +1,6 @@
 import os
 import argparse     # Used to parse optional command-line arguments
+from colorama import Fore, Style
 
 import class_def
 from platforms import platform_dict
@@ -50,8 +51,9 @@ AllParts.import_platforms(platform_dict)
 if args.target_all or args.target_part:
     with open(class_def.TARGET_PARTS_PATH, "r") as target_parts_file:
         # Display contents about to be overwritten.
+        print(Fore.YELLOW)
         print("Previous %s contents:" % os.path.basename(class_def.TARGET_PARTS_PATH))
-        print(target_parts_file.read())
+        print(target_parts_file.read(), Style.RESET_ALL)
     if args.target_part:
         with open(class_def.TARGET_PARTS_PATH, "w") as target_parts_file:
             target_parts_file.write(args.target_part.upper())

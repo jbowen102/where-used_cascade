@@ -6,7 +6,7 @@ import csv
 import argparse     # Used to parse optional command-line arguments
 import re
 import string
-import colorama
+from colorama import Fore, Style
 
 import pandas as pd
 import numpy as np
@@ -45,15 +45,14 @@ class AssumptionFail(Exception):
 
 
 def print_debug(text, other_thing=None, temp=False):
-    colorama.init()
     if temp:
-        color_choice = colorama.Fore.BLUE
+        color_choice = Fore.BLUE
     else:
-        color_choice = colorama.Fore.CYAN
+        color_choice = Fore.CYAN
     print(color_choice + "[DEBUG: %s]" % text)
     if other_thing is not None:
         print(other_thing)
-    print(colorama.Style.RESET_ALL)
+    print(Style.RESET_ALL)
 
 def is_exp_rev(rev):
     if len(rev) >= 2 and rev[-2:].isdecimal():
