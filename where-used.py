@@ -79,9 +79,11 @@ if args.mode.lower() == "single":
 
 elif args.mode.lower() == "multi":
     """Reads in SAP multi-level where-used report(s), reads in target parts.
+    Also works with SAP single-level where-used reports.
     Exports graph showing where-used hierarchy along with can-obsolete coloring.
     """
     AllParts.import_all_reports(report_type="SAP_multi_w")
+    # AllParts.export_parts_set(omit_platforms=True) # Export just the de-duplicated parts list. Esp. useful if SAP reports are actually one-level
 
     TreeViz = class_def.TreeGraph(AllParts, target_group_only=True,
                             printout=args.printout, exclude_desc=args.compact,

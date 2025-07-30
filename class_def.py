@@ -198,6 +198,7 @@ class Platform(Part):
         self.can_obs = can_obs
         self.Parents = set()
         self.orphan = False
+        self.report_name = None
 
     def get_obs_status(self, silent=False):
         return self.can_obs
