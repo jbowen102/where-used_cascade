@@ -257,7 +257,7 @@ def parse_rev_status(status_str):
     # "Gamma,Approved"                      (green flag)
     exp_status = re.findall(r"(concept|baseline|alpha|beta|gamma)$", status_str,
                                                             flags=re.IGNORECASE)
-    grn_status = re.findall(r"(,approved)$", status_str,
+    grn_status = re.findall(r"(,(\s)?approved)$", status_str,
                                                             flags=re.IGNORECASE)
     purple_status = re.findall(r"(preliminary)$", status_str,
                                                             flags=re.IGNORECASE)
@@ -291,16 +291,16 @@ def parse_rev_status(status_str):
     obs_status = re.findall(r"(obsolete)$", status_str, flags=re.IGNORECASE)
 
     if sum([len(exp_status),
-           len(grn_status),
-           len(purple_status),
-           len(canc_status),
-           len(turf_checkd),
-           len(yel_status),
-           len(sup_status),
-           len(checkd_status),
-           len(rcheckd_status),
-           len(ovtkn_status),
-           len(obs_status)]) > 1:
+            len(grn_status),
+            len(purple_status),
+            len(canc_status),
+            len(turf_checkd),
+            len(yel_status),
+            len(sup_status),
+            len(checkd_status),
+            len(rcheckd_status),
+            len(ovtkn_status),
+            len(obs_status)]) > 1:
         raise Exception("More than one status match found: %s" % status_str)
 
     if not status_str:
