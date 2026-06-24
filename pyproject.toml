@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "where_used_cascade"
+version = "0.0.0"
+description = "Utilities for analyzing BOMs and where-used reports from SAP and TC"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["where_used_cascade"]
+
+[tool.setuptools.package-dir]
+where_used_cascade = "."
